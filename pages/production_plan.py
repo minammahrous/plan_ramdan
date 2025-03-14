@@ -6,6 +6,45 @@ from auth import check_authentication
 
 # Ensure user is authenticated
 check_authentication()
+import streamlit as st
+import pandas as pd
+import psycopg2
+from db import get_db_connection, get_branches
+from auth import check_authentication
+
+# Ensure user is authenticated
+check_authentication()
+
+st.title("Production Plan")
+
+# ✅ Ensure branches are fetched only once and stored in session state
+if "branches" not in st.session_state:
+    st.session_state["branches"] = get_branches()
+
+# ✅ Ensure session state has a valid branch
+if "branch" not in st.session_state or st.session_state["branch"] not in st.session_state["branches"]:
+    st.session_state["branch"] = st.session_state["branches"][0]  # Default to the first available branch
+
+# ✅ Branch Selection Dropdown (Persistent Across Reruns)
+selected_branch = st.selectbox(
+    "Select Database Branch:",
+    st.session_state["branches"],
+    index=st.session_state["branches"].index(st.session_state["branch"])
+)
+
+# ✅ Update the session state when the branch is changed
+if selected_branch != st.session_state["branch"]:
+    st.session_state["branch"] = selected_branch
+    st.rerun()  # Force refresh to apply the branch change
+
+st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
+
+# ✅ Pass the selected branch to `get_db_connection()`
+conn = get_db_connection()
+
+if not conn:
+    st.error("❌ Database connection failed.")
+    st.stop()
 
 st.title("Production Plan")
 
