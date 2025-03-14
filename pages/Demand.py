@@ -1,80 +1,62 @@
 import streamlit as st
+from db import get_sqlalchemy_engine, get_branches
 import pandas as pd
-from datetime import datetime
-import streamlit as st
-from db import get_branches, get_sqlalchemy_engine  # Ensure correct imports
 
-# ✅ Fetch available branches
-branches = get_branches()
-if "branch" not in st.session_state:
-    st.session_state["branch"] = "main"  # Default to 'main'
-
-# ✅ Allow user to select a branch
-selected_branch = st.selectbox("Select Database Branch:", branches, key="branch_select")
-st.session_state["branch"] = selected_branch  # Update session state
-
-st.write(f"Demand Page connected to branch: **{selected_branch}**")
-
-# ✅ Get database engine for the selected branch
-engine = get_sqlalchemy_engine(selected_branch)  # Ensure this function accepts the branch name
-
-# ✅ Fetch products from the selected branch
-import pandas as pd
-query = "SELECT * FROM products"  # Adjust if needed
-df_products = pd.read_sql(query, con=engine)
-
-# ✅ Show debug output to confirm branch switch
-st.write("DEBUG - Fetched Products from Branch:", selected_branch)
-st.dataframe(df_products)  # Display products to check the data
-
-# ✅ Debug: Check if the function is being called
+# Ensure session state has a branch set
 if "branch" not in st.session_state:
     st.session_state["branch"] = "main"
 
+# Fetch available branches
+branches = get_branches()
 
-def fetch_products():
-    engine = get_sqlalchemy_engine()
-    query = "SELECT name, batch_size FROM products"
-    return pd.read_sql(query, engine)
+# Dropdown to select a database branch
+selected_branch = st.selectbox(
+    "Select Database Branch:", branches, index=branches.index(st.session_state["branch"])
+)
 
-# Save demand entry to the database
-def save_demand(entries):
-    engine = get_sqlalchemy_engine()
-    query = """
-    INSERT INTO demand (products, batch_number, week, year, batch_size, created_at)
-    VALUES (%s, %s, %s, %s, %s, NOW())
-    """
-    with engine.connect() as conn:
-        conn.execute(query, entries)
+# Update session state with selected branch
+st.session_state["branch"] = selected_branch
 
-# Streamlit UI
-st.title("Demand Planning")
+# Debugging output
+st.write(f"Using Database Branch: `{st.session_state['branch']}`")
 
-# Fetch product list
-products_df = fetch_products()
+# Get SQLAlchemy engine for the selected branch
+engine = get_sqlalchemy_engine()  # No arguments needed, it reads from session state
+
+# Fetch products from the `product` table
+query = "SELECT * FROM product"
+df_products = pd.read_sql(query, engine)
 
 # Product selection
-product_name = st.selectbox("Select Product", products_df["name"])
+selected_product = st.selectbox("Select Product:", df_products["name"])
 
-# Get batch size
-batch_size = products_df.loc[products_df["name"] == product_name, "batch_size"].values[0]
+# Get the batch size for the selected product
+batch_size = df_products[df_products["name"] == selected_product]["batch_size"].values[0]
 st.write(f"Batch Size: {batch_size}")
 
-# Number of batches input
-num_batches = st.number_input("Number of Batches", min_value=1, step=1, value=1)
+# Input for number of batches
+num_batches = st.number_input("Number of Batches:", min_value=1, step=1)
 
-# Collect batch numbers and weeks
-batch_entries = []
+# Dynamic inputs for batch numbers
+batch_numbers = []
 for i in range(num_batches):
-    batch_number = st.text_input(f"Enter Batch Number {i+1}")
-    week = st.selectbox(f"Select Week for Batch {i+1}", list(range(1, 53)))
-    batch_entries.append((product_name, batch_number, week, datetime.now().year, batch_size))
+    batch_number = st.text_input(f"Batch Number {i+1}:")
+    batch_numbers.append(batch_number)
 
-# Submit button
-if st.button("Add to Demand"):
-    if all(entry[1] for entry in batch_entries):  # Ensure batch numbers are entered
-        save_demand(batch_entries)
-        st.success("Demand added successfully!")
-    else:
-        st.error("Please enter all batch numbers.")
+# Assigning batches to a week
+week_numbers = []
+for i in range(num_batches):
+    week_number = st.number_input(f"Week for Batch {batch_numbers[i]}:", min_value=1, max_value=52, step=1)
+    week_numbers.append(week_number)
 
+# Save the demand data
+if st.button("Save Demand Data"):
+    demand_data = pd.DataFrame({
+        "product": [selected_product] * num_batches,
+        "batch_number": batch_numbers,
+        "week": week_numbers,
+        "quantity": [batch_size] * num_batches
+    })
+    
+    demand_data.to_sql("demand", engine, if_exists="append", index=False)
+    st.success("Demand data saved successfully!")
