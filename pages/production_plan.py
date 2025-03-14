@@ -1,6 +1,6 @@
 import streamlit as st
 import psycopg2
-from db import get_db_connection
+from db import get_db_connection, get_branches
 from auth import check_authentication
 
 # Ensure user is authenticated
@@ -8,11 +8,21 @@ check_authentication()
 
 st.title("Production Plan")
 
-# Connect to the database
+# Branch Selection (for Admin)
+if "branch" not in st.session_state:
+    st.session_state["branch"] = "main"  # Default branch
+
+branches = get_branches()  # Fetch available branches
+selected_branch = st.selectbox("Select Database Branch:", branches, index=branches.index(st.session_state["branch"]))
+st.session_state["branch"] = selected_branch  # Update session state
+
+st.sidebar.success(f"Working on branch: {selected_branch}")
+
+# Connect to the selected branch
 conn = get_db_connection()
 
 if conn:
-    st.success("✅ Connected to database")
+    st.success(f"✅ Connected to {selected_branch} branch")
     cur = conn.cursor()
 
     # Fetch products from the database
@@ -51,7 +61,7 @@ if conn:
                         """, (selected_product, batch_number))
                     
                     conn.commit()
-                    st.success("✅ Production plan saved successfully!")
+                    st.success(f"✅ Production plan saved to {selected_branch} branch successfully!")
                 else:
                     st.error("❌ Please enter all batch numbers before saving.")
 
@@ -62,4 +72,4 @@ if conn:
     conn.close()
 
 else:
-    st.error("❌ Database connection failed.")
+    st.error(f"❌ Database connection failed for branch: {selected_branch}")
