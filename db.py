@@ -2,7 +2,7 @@ import psycopg2
 from sqlalchemy import create_engine
 import streamlit as st
 
-ddef get_sqlalchemy_engine():
+def get_sqlalchemy_engine():
     """Returns a SQLAlchemy engine for the selected PostgreSQL branch."""
     
     branch = st.session_state.get("branch", "main")  # Default to "main"
@@ -13,7 +13,10 @@ ddef get_sqlalchemy_engine():
     db_name = st.secrets["database"]["database"]
 
     # ✅ Include search_path to switch schemas dynamically
-    db_url = f"postgresql://{db_user}:{db_password}@{db_host}/{db_name}?options=-c%20search_path={branch}"
+    db_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}/{db_name}?options=-c%20search_path={branch}"
+
+    # ✅ Return the SQLAlchemy engine
+    return create_engine(db_url, pool_pre_ping=True)
 
 def get_db_connection():
     """Establish and return a database connection based on the user's assigned branch."""
@@ -56,7 +59,5 @@ def get_branches():
         print(f"❌ Failed to fetch branches: {e}")  # ✅ Log error instead of `st.error()`
         return ["main"]
     finally:
-        if cur:
-            cur.close()
         if conn:
             conn.close()  # ✅ Ensure connection is always closed
