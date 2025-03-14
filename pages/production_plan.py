@@ -26,7 +26,7 @@ selected_branch = st.selectbox(
 
 if selected_branch != st.session_state["branch"]:
     st.session_state["branch"] = selected_branch
-    st.session_state["df_batches"] = pd.DataFrame()  # Reset when branch changes
+    st.session_state["df_batches"] = pd.DataFrame()  # Reset DataFrame when branch changes
     st.rerun()
 
 st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
@@ -87,11 +87,12 @@ if selected_product:
     # Generate Batch Numbers
     for i in range(num_batches):
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
+
         if batch_number:
             # Prevent duplicate check error when the dataframe is empty
             if not st.session_state["df_batches"].empty and batch_number in st.session_state["df_batches"]["Batch Number"].values:
                 st.warning(f"Batch {batch_number} already exists! Skipping duplicate.")
-                continue
+                continue  # Skip duplicate batch numbers
 
             # Calculate Time for Each Machine
             time_per_machine = {}
@@ -111,23 +112,23 @@ if selected_product:
             # Append batch data
             batch_data.append({"Select": False, "Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-    # Update Session State DataFrame
+    # Update Session State DataFrame only if new batch data is provided
     if batch_data:
         new_df = pd.DataFrame(batch_data)
         st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
 
 # Function to delete selected rows
 def delete_selected_rows():
-    df = st.session_state["df_batches"]
-    st.session_state["df_batches"] = df[df["Select"] == False].reset_index(drop=True)  # Keep only unchecked rows
-    st.rerun()  # Rerun the script to refresh the UI
+    if "df_batches" in st.session_state and not st.session_state["df_batches"].empty:
+        st.session_state["df_batches"] = st.session_state["df_batches"][st.session_state["df_batches"]["Select"] == False].reset_index(drop=True)
+        st.rerun()
 
 # Display the DataFrame as a table with checkboxes for deletion
 st.write("### Production Plan")
 
 if not st.session_state["df_batches"].empty:
-    # Convert DataFrame to allow selection
     df_display = st.session_state["df_batches"].copy()
+
     df_display = st.data_editor(
         df_display,
         column_config={"Select": st.column_config.CheckboxColumn("Delete?")},
@@ -136,7 +137,7 @@ if not st.session_state["df_batches"].empty:
         use_container_width=True
     )
 
-    # Update selection state
+    # Update selection state in session_state
     st.session_state["df_batches"]["Select"] = df_display["Select"]
 
     # Delete Selected Button
