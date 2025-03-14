@@ -5,11 +5,8 @@ from db import get_db_connection
 
 # Role-based access control
 ROLE_ACCESS = {
-    "admin": ["shift_output_form", "reports_dashboard", "master_data", "user_management", "extract_data"],
-    "user": ["shift_output_form", "reports_dashboard", "extract_data"],
-    "power user": ["shift_output_form", "reports_dashboard", "master_data", "extract_data"],
-    "report": ["reports_dashboard", "extract_data"],
-}
+    "planner": ["demand"],
+    }
 
 def check_authentication():
     if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
