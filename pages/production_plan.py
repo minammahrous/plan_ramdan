@@ -110,37 +110,32 @@ if selected_product:
         new_df = pd.DataFrame(batch_data)
         st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
 
-# Sample Data (Replace with actual session data)
+# Initialize session state for the DataFrame
 if "df_batches" not in st.session_state:
     st.session_state["df_batches"] = pd.DataFrame([
         {"Product": "Product A", "Batch Number": "B001", "Machine 1": 5, "Machine 2": 7},
         {"Product": "Product B", "Batch Number": "B002", "Machine 1": 6, "Machine 2": 8}
     ])
 
-# Function to delete row
+# Function to delete a row
 def delete_row(index):
-    st.session_state["df_batches"].drop(index, inplace=True)
-    st.session_state["df_batches"].reset_index(drop=True, inplace=True)
+    df = st.session_state["df_batches"]
+    st.session_state["df_batches"] = df.drop(index).reset_index(drop=True)  # Delete & reset index
+    st.rerun()  # Rerun the script to refresh the UI properly
 
-# Display DataFrame as Table with Delete Buttons
+# Display the DataFrame as a table with delete buttons
 st.write("### Production Plan")
 
-# Create a dataframe-like structure with buttons
+# Convert DataFrame to display with delete buttons
 df_display = st.session_state["df_batches"].copy()
-df_display["Delete"] = ["❌ Delete" for _ in range(len(df_display))]  # Add Delete column
 
-# Iterate over DataFrame and display rows with buttons
-for index, row in df_display.iterrows():
-    cols = st.columns(len(row))  # Create columns
-    for i, (col_name, value) in enumerate(row.items()):
-        if col_name == "Delete":
-            # Unique delete button key per row
-            if cols[i].button(value, key=f"delete_{index}"):
-                delete_row(index)
-                st.rerun()
-        else:
-            cols[i].write(f"**{col_name}**: {value}")  # Display data values
+# Use Streamlit's dataframe for a clean display
+st.dataframe(df_display, hide_index=True, use_container_width=True)
 
+# Create Delete buttons for each row
+for index in range(len(df_display)):
+    if st.button(f"❌ Delete Row {index + 1}", key=f"delete_{index}"):
+        delete_row(index)
 # **Approve & Save Button** (Ensure unique ID)
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
     st.success("Plan Approved & Saved!")  # Replace with DB save logic
