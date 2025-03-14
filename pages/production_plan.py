@@ -46,7 +46,7 @@ if selected_product:
 
     # Fetch Machines & Rates (from `rates` and `machines` tables)
     cur.execute("""
-        SELECT r.machine, r.rate, m.qty_uom 
+        SELECT r.machine, r.standard_rate, m.qty_uom 
         FROM rates r 
         JOIN machines m ON r.machine = m.name
         WHERE r.product = %s
