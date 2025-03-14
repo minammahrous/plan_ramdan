@@ -4,14 +4,14 @@ from db import get_sqlalchemy_engine, get_branches
 
 # Ensure session state has a branch set
 if "branch" not in st.session_state:
-    st.session_state["branch"] = "main"  # Default to 'main'
+    st.session_state["branch"] = "ramdan"  # Default to 'ramdan'
 
 # Fetch available branches from the `branches` table
 branches = get_branches()
 
 # Ensure current branch is valid
 if st.session_state["branch"] not in branches:
-    st.session_state["branch"] = "main"
+    st.session_state["branch"] = "ramdan"
 
 # Dropdown to select a database branch
 selected_branch = st.selectbox(
