@@ -110,7 +110,7 @@ if selected_product:
         new_df = pd.DataFrame(batch_data)
         st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
 
-   # Sample Data (Replace with actual session data)
+# Sample Data (Replace with actual session data)
 if "df_batches" not in st.session_state:
     st.session_state["df_batches"] = pd.DataFrame([
         {"Product": "Product A", "Batch Number": "B001", "Machine 1": 5, "Machine 2": 7},
@@ -124,13 +124,26 @@ def delete_row(index):
 
 # Display DataFrame as Table with Delete Buttons
 st.write("### Production Plan")
-for index, row in st.session_state["df_batches"].iterrows():
-    cols = st.columns(len(row) + 1)  # Extra column for delete button
+
+# Create a dataframe-like structure with buttons
+df_display = st.session_state["df_batches"].copy()
+df_display["Delete"] = ["❌ Delete" for _ in range(len(df_display))]  # Add Delete column
+
+# Iterate over DataFrame and display rows with buttons
+for index, row in df_display.iterrows():
+    cols = st.columns(len(row))  # Create columns
     for i, (col_name, value) in enumerate(row.items()):
-        cols[i].write(f"**{col_name}**: {value}")  # Display cell value
-    if cols[-1].button("❌ Delete", key=f"delete_{index}"):
-        delete_row(index)
-        st.rerun()  # Refresh UI after deletion
+        if col_name == "Delete":
+            # Unique delete button key per row
+            if cols[i].button(value, key=f"delete_{index}"):
+                delete_row(index)
+                st.rerun()
+        else:
+            cols[i].write(f"**{col_name}**: {value}")  # Display data values
+
+# **Approve & Save Button** (Ensure unique ID)
+if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
+    st.success("Plan Approved & Saved!")  # Replace with DB save logic
 
     # Approve & Save to Database
     if st.button("Approve & Save Plan") and not st.session_state["df_batches"].empty:
