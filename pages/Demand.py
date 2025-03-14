@@ -6,6 +6,15 @@ from auth import check_authentication, check_access
 
 # Authenticate user and get user details
 user = check_authentication()
+
+# Debugging to check user data
+st.write(f"Debug: User details -> {user}")
+
+# Ensure user is a dictionary
+if not isinstance(user, dict):
+    st.error("Authentication failed: User details not available.")
+    st.stop()
+
 check_access(["planner"])
 
 st.set_page_config(page_title="Production Planning", layout="wide")
