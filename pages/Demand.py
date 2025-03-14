@@ -29,8 +29,7 @@ st.write(f"Using Database Branch: `{selected_branch}`")
 
 
 # Get SQLAlchemy engine for the selected branch
-engine = get_sqlalchemy_engine(selected_branch)  # Pass the selected branch
-
+engine = get_sqlalchemy_engine(st.session_state["branch"])
 # ✅ Explicitly set the schema before running queries
 with engine.connect() as connection:
     connection.execute(text(f"SET search_path TO {selected_branch}"))  # ✅ Use text() to execute SQL
