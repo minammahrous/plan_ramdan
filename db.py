@@ -63,3 +63,24 @@ def get_branches():
             cur.close()
         if conn:
             conn.close()  # ✅ Ensure connection is always closed
+            
+def get_main_db_connection():
+    """Ensures connection to the main branch for authentication tasks."""
+    try:
+        db_host = st.secrets["database"]["hosts"]["main"]
+        db_password = st.secrets["branch_passwords"]["main"]
+        db_user = st.secrets["database"]["user"]
+        db_name = st.secrets["database"]["database"]
+
+        conn = psycopg2.connect(
+            dbname=db_name,
+            user=db_user,
+            password=db_password,
+            host=db_host,
+            port=5432
+        )
+        return conn
+    except Exception as e:
+        print(f"❌ Authentication DB connection failed: {e}")
+        return None
+
