@@ -1,5 +1,5 @@
 import streamlit as st
-from auth import authenticate_user, check_authentication
+from auth import authenticate_user
 from db import get_branches
 
 # Authenticate the user
@@ -11,7 +11,7 @@ if user_info:
     # Get available branches from the database
     branches = get_branches()
     
-    # Only allow admin to select branches
+    # Allow only admin to select branches
     if user_info["role"] == "admin":
         selected_branch = st.sidebar.selectbox("Select a branch to work on:", branches)
         st.session_state["branch"] = selected_branch  # Store selected branch
@@ -20,20 +20,25 @@ if user_info:
     # Main Navigation
     st.title("Production Planning App")
 
+    # Initialize session state for page navigation
+    if "page" not in st.session_state:
+        st.session_state["page"] = "Production Plan"
+
+    # Sidebar navigation
     page = st.sidebar.radio(
         "Go to:", 
         ["Production Plan", "Reports", "Logout"]
     )
 
+    # Set session state instead of query params
     if page == "Production Plan":
-        st.query_params(page="production_plan")  # ✅ Fixed
+        st.session_state["page"] = "Production Plan"
         st.rerun()
     
     elif page == "Reports":
-        st.query_params(page="reports")  # ✅ Fixed
+        st.session_state["page"] = "Reports"
         st.rerun()
     
     elif page == "Logout":
         st.session_state.clear()  # Reset session
-        st.query_params()  # ✅ Fixed
         st.rerun()
