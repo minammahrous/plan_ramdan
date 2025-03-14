@@ -2,11 +2,15 @@ import streamlit as st
 import psycopg2
 import bcrypt
 from db import get_db_connection
+from db import get_main_db_connection
 
 # Role-based access control
 ROLE_ACCESS = {
-    "planner": ["demand"],
-    }
+    "admin": ["shift_output_form", "reports_dashboard", "master_data", "user_management", "extract_data", "change_password"],
+    "user": ["shift_output_form", "reports_dashboard", "extract_data", "change_password"],
+    "power user": ["shift_output_form", "reports_dashboard", "master_data", "extract_data", "change_password"],
+    "report": ["reports_dashboard", "extract_data", "change_password"],
+}
 
 def check_authentication():
     if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
@@ -36,7 +40,7 @@ def authenticate_user():
     password = st.sidebar.text_input("Password", type="password", key="login_password")
 
     if st.sidebar.button("Login", key="login_button"):
-        conn = get_db_connection()
+        conn = get_main_db_connection()
         cur = conn.cursor()
 
         try:
