@@ -13,23 +13,27 @@ check_access(["planner"])
 st.set_page_config(page_title="Production Planning", layout="wide")
 st.title("Production Planning Dashboard")
 
-# Fetch available branches
+# Always fetch the latest available branches
 branches = get_branches()
 
 # Debugging: Show fetched branches
 st.write(f"Available branches: {branches}")
 
-# Ensure session state has a branch set
+# Ensure session state has a valid branch
 if "branch" not in st.session_state or st.session_state["branch"] not in branches:
     st.session_state["branch"] = branches[0] if branches else "main"  # Default to first available branch
 
 # Dropdown to select a database branch
 selected_branch = st.selectbox("Select Database Branch:", branches, index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0)
 
-# Update session state with selected branch and trigger rerun if changed
+# If branch changes, update session state and force a refresh
 if st.session_state["branch"] != selected_branch:
     st.session_state["branch"] = selected_branch
     st.rerun()
+
+# Re-fetch the latest branches to prevent them from disappearing
+global_branches = get_branches()
+st.write(f"Updated branches after selection: {global_branches}")
 
 # Debugging: Show selected branch
 st.write(f"Using Database Branch: `{st.session_state['branch']}`")
