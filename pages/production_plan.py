@@ -8,11 +8,14 @@ check_authentication()
 
 st.title("Production Plan")
 
-# Branch Selection (for Admin)
-if "branch" not in st.session_state:
-    st.session_state["branch"] = "main"  # Default branch
+# Fetch available branches from the database
+branches = get_branches()
 
-branches = get_branches()  # Fetch available branches
+# Ensure session state has a valid branch
+if "branch" not in st.session_state or st.session_state["branch"] not in branches:
+    st.session_state["branch"] = branches[0]  # Default to the first available branch
+
+# Create branch selection dropdown
 selected_branch = st.selectbox("Select Database Branch:", branches, index=branches.index(st.session_state["branch"]))
 st.session_state["branch"] = selected_branch  # Update session state
 
