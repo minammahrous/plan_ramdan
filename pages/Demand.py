@@ -1,7 +1,38 @@
 import streamlit as st
 from db import get_sqlalchemy_engine, get_branches
 import pandas as pd
+# Ensure session state has a branch set
+if "branch" not in st.session_state:
+    st.session_state["branch"] = "main"  # Default to 'main'
 
+# Fetch available branches
+branches = get_branches()
+
+# ✅ Ensure the current branch is in the list; if not, set a default
+if st.session_state["branch"] not in branches:
+    st.session_state["branch"] = "main"
+
+# ✅ Dropdown to select a database branch
+selected_branch = st.selectbox(
+    "Select Database Branch:", branches, index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0
+)
+
+# Store the selected branch in session state
+st.session_state["branch"] = selected_branch
+
+# ✅ Debugging: Show selected branch
+st.write(f"Using Database Branch: `{selected_branch}`")
+
+# ✅ Get database engine for the selected branch
+engine = get_sqlalchemy_engine()
+
+# ✅ Fetch products from the 'products' table
+query = "SELECT * FROM products"
+df_products = pd.read_sql(query, engine)
+
+# ✅ Show the fetched products data
+st.write("Fetched Products Data:")
+st.dataframe(df_products)
 # Ensure session state has a branch set
 if "branch" not in st.session_state:
     st.session_state["branch"] = "main"
