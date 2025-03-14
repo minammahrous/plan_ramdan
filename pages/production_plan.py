@@ -127,7 +127,7 @@ if selected_product:
 
                 cur.execute("""
                     INSERT INTO production_plan 
-                    (product, batch_number, machine, planned_start_datetime, planned_end_datetime, production_time, updated_at)
+                    (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
                     VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
                 """, (row["Product"], row["Batch Number"], machine, time_value))
         
