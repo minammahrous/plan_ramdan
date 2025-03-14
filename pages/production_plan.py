@@ -89,8 +89,8 @@ if selected_product:
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
 
         if batch_number:
-            # Prevent duplicate check error when the dataframe is empty
-            if not st.session_state["df_batches"].empty and batch_number in st.session_state["df_batches"]["Batch Number"].values:
+            # Only check for duplicates if DataFrame is NOT empty
+            if not st.session_state["df_batches"].empty and batch_number in st.session_state["df_batches"]["Batch Number"].tolist():
                 st.warning(f"Batch {batch_number} already exists! Skipping duplicate.")
                 continue  # Skip duplicate batch numbers
 
@@ -129,6 +129,10 @@ st.write("### Production Plan")
 if not st.session_state["df_batches"].empty:
     df_display = st.session_state["df_batches"].copy()
 
+    # Force 'Select' column to be boolean for proper checkbox handling
+    if "Select" in df_display.columns:
+        df_display["Select"] = df_display["Select"].astype(bool)
+
     df_display = st.data_editor(
         df_display,
         column_config={"Select": st.column_config.CheckboxColumn("Delete?")},
@@ -137,7 +141,7 @@ if not st.session_state["df_batches"].empty:
         use_container_width=True
     )
 
-    # Update selection state in session_state
+    # Update session state to reflect checkbox selections
     st.session_state["df_batches"]["Select"] = df_display["Select"]
 
     # Delete Selected Button
