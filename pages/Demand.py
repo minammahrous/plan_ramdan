@@ -4,38 +4,33 @@ import pandas as pd
 from sqlalchemy import text  # ✅ Import text from SQLAlchemy
 from auth import check_authentication, check_access
 
-# Authenticate user before anything else
-check_authentication()
-
-# Enforce access control: Only "planner" can access this form
+# Authenticate user and get user details
+user = check_authentication()
 check_access(["planner"])
 
 st.set_page_config(page_title="Production Planning", layout="wide")
 st.title("Production Planning Dashboard")
 
-# Always fetch the latest available branches
+# Fetch available branches
 branches = get_branches()
 
-# Debugging: Show fetched branches
-st.write(f"Available branches: {branches}")
+# Get user's assigned branch
+user_branch = user.get("branch", "main")  # Default to 'main' if not found
 
 # Ensure session state has a valid branch
 if "branch" not in st.session_state or st.session_state["branch"] not in branches:
-    st.session_state["branch"] = branches[0] if branches else "main"  # Default to first available branch
+    st.session_state["branch"] = user_branch if user_branch in branches else branches[0]
 
 # Dropdown to select a database branch
-selected_branch = st.selectbox("Select Database Branch:", branches, index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0)
+selected_branch = st.selectbox("Select Database Branch:", branches, 
+                               index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0)
 
-# If branch changes, update session state and force a refresh
+# If branch changes, update session state and force refresh
 if st.session_state["branch"] != selected_branch:
     st.session_state["branch"] = selected_branch
     st.rerun()
 
-# Re-fetch the latest branches to prevent them from disappearing
-global_branches = get_branches()
-st.write(f"Updated branches after selection: {global_branches}")
-
-# Debugging: Show selected branch
+# Display selected branch
 st.write(f"Using Database Branch: `{st.session_state['branch']}`")
 
 # Get SQLAlchemy engine for the selected branch
@@ -70,16 +65,10 @@ st.write(f"Batch Size: {batch_size}")
 num_batches = st.number_input("Number of Batches:", min_value=1, step=1)
 
 # Dynamic inputs for batch numbers
-batch_numbers = []
-for i in range(num_batches):
-    batch_number = st.text_input(f"Batch Number {i+1}:")
-    batch_numbers.append(batch_number)
+batch_numbers = [st.text_input(f"Batch Number {i+1}:") for i in range(num_batches)]
 
 # Assigning batches to a week
-week_numbers = []
-for i in range(num_batches):
-    week_number = st.number_input(f"Week for Batch {i+1}:", min_value=1, max_value=52, step=1)
-    week_numbers.append(week_number)
+week_numbers = [st.number_input(f"Week for Batch {i+1}:", min_value=1, max_value=52, step=1) for i in range(num_batches)]
 
 # Ensure all batch numbers are filled before saving
 def validate_batch_numbers(batch_numbers):
