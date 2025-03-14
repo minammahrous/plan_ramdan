@@ -3,16 +3,14 @@ from db import get_branches, get_sqlalchemy_engine
 import pandas as pd
 from sqlalchemy import text  # ✅ Import text from SQLAlchemy
 from auth import check_authentication, check_access
+
 # Authenticate user before anything else
 check_authentication()
 
-# Enforce access control: Only "user", "power user", and "admin" can access this form
+# Enforce access control: Only "planner" can access this form
 check_access(["planner"])
 
-# Get the correct database engine for the assigned branch
-engine = get_sqlalchemy_engine()
 st.set_page_config(page_title="Production Planning", layout="wide")
-
 st.title("Production Planning Dashboard")
 
 # Ensure session state has a branch set
@@ -29,13 +27,13 @@ if branches and st.session_state["branch"] not in branches:
 # Dropdown to select a database branch
 selected_branch = st.selectbox("Select Database Branch:", branches, index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0)
 
-# Update session state with selected branch
-st.session_state["branch"] = selected_branch
+# Update session state with selected branch and trigger rerun if changed
+if st.session_state["branch"] != selected_branch:
+    st.session_state["branch"] = selected_branch
+    st.rerun()
 
 # Debugging: Show selected branch
 st.write(f"Using Database Branch: `{selected_branch}`")
-
-
 # Get SQLAlchemy engine for the selected branch
 engine = get_sqlalchemy_engine()
 # ✅ Explicitly set the schema before running queries
