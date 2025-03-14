@@ -15,17 +15,10 @@ def get_sqlalchemy_engine():
     db_password = st.secrets["branch_passwords"].get(branch, st.secrets["branch_passwords"]["main"])
     db_name = st.secrets["database"]["database"]
 
-    # ✅ Remove `options=-c search_path={branch}`
+    # ✅ Remove search_path from the connection string
     db_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}/{db_name}"
 
-    # ✅ Create engine without search_path
-    engine = create_engine(db_url, pool_pre_ping=True)
-
-    # ✅ Set search_path after connecting
-    with engine.connect() as connection:
-        connection.execute(f"SET search_path TO {branch}")
-
-    return engine
+    return create_engine(db_url, pool_pre_ping=True)
 
 
 def get_db_connection():
