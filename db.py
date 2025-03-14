@@ -5,21 +5,22 @@ import streamlit as st
 from sqlalchemy import create_engine
 import streamlit as st
 
-def get_sqlalchemy_engine():
-    """Returns a SQLAlchemy engine for the selected PostgreSQL branch."""
+def get_sqlalchemy_engine(branch=None):
+    """Get SQLAlchemy engine for the specified branch"""
+    db_url_template = "postgresql+psycopg2://{user}:{password}@{host}/{database}"
     
-    branch = st.session_state.get("branch", "main")  # Default to "main"
-
-    db_host = st.secrets["database"]["hosts"].get(branch, st.secrets["database"]["hosts"]["main"])
-    db_user = st.secrets["database"]["user"]
-    db_password = st.secrets["branch_passwords"].get(branch, st.secrets["branch_passwords"]["main"])
-    db_name = st.secrets["database"]["database"]
-
-    # ✅ Remove search_path from the connection string
-    db_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}/{db_name}"
-
-    return create_engine(db_url, pool_pre_ping=True)
-
+    # Fetch credentials from Streamlit secrets
+    db_credentials = st.secrets["database"]
+    
+    # Construct the DB URL with the branch name as the database
+    db_url = db_url_template.format(
+        user=db_credentials["user"],
+        password=db_credentials["password"],
+        host=db_credentials["host"],
+        database=branch if branch else db_credentials["database"],  # Use branch as database
+    )
+    
+    return create_engine(db_url)
 
 def get_db_connection():
     """Establish and return a database connection based on the user's assigned branch."""
