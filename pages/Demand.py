@@ -1,23 +1,37 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from db import get_sqlalchemy_engine  # Import your database connection function
-from db import get_branches  # Ensure this function is correctly imported
+import streamlit as st
+from db import get_branches, get_sqlalchemy_engine  # Ensure correct imports
+
+# ✅ Fetch available branches
+branches = get_branches()
+if "branch" not in st.session_state:
+    st.session_state["branch"] = "main"  # Default to 'main'
+
+# ✅ Allow user to select a branch
+selected_branch = st.selectbox("Select Database Branch:", branches, key="branch_select")
+st.session_state["branch"] = selected_branch  # Update session state
+
+st.write(f"Demand Page connected to branch: **{selected_branch}**")
+
+# ✅ Get database engine for the selected branch
+engine = get_sqlalchemy_engine(selected_branch)  # Ensure this function accepts the branch name
+
+# ✅ Fetch products from the selected branch
+import pandas as pd
+query = "SELECT * FROM products"  # Adjust if needed
+df_products = pd.read_sql(query, con=engine)
+
+# ✅ Show debug output to confirm branch switch
+st.write("DEBUG - Fetched Products from Branch:", selected_branch)
+st.dataframe(df_products)  # Display products to check the data
 
 # ✅ Debug: Check if the function is being called
 if "branch" not in st.session_state:
     st.session_state["branch"] = "main"
 
-# ✅ Fetch branches
-branches = get_branches()
-st.write("DEBUG - Fetched Branches in Demand Page:", branches)  # Check if it's fetching correctly
 
-# ✅ Display branch selection
-selected_branch = st.selectbox("Select Database Branch:", branches, key="demand_branch")
-st.session_state["branch"] = selected_branch
-
-st.write(f"Demand Page connected to branch: **{selected_branch}**")
-# Fetch products from the database
 def fetch_products():
     engine = get_sqlalchemy_engine()
     query = "SELECT name, batch_size FROM products"
