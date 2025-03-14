@@ -120,7 +120,7 @@ if selected_product:
                     time_per_machine[machine] = round(1 / rate, 2)  # Hours per batch
                 elif qty_uom == "thousand units":
                     time_per_machine[machine] = round((batch_size * units_per_box) / (1000 * rate), 2)
-                elif qty_uom == "thousand primary units":
+                elif qty_uom == "thousand units 1ry":
                     time_per_machine[machine] = round((batch_size * primary_units_per_box) / (1000 * rate), 2)
                 else:
                     time_per_machine[machine] = None  # Undefined unit
