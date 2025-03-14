@@ -3,6 +3,14 @@ from db import get_branches, get_sqlalchemy_engine
 import pandas as pd
 from sqlalchemy import text  # ✅ Import text from SQLAlchemy
 
+# Authenticate user before anything else
+check_authentication()
+
+# Enforce access control: Only "user", "power user", and "admin" can access this form
+check_access(["planner"])
+
+# Get the correct database engine for the assigned branch
+engine = get_sqlalchemy_engine()
 st.set_page_config(page_title="Production Planning", layout="wide")
 
 st.title("Production Planning Dashboard")
