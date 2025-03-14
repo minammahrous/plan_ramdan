@@ -29,6 +29,20 @@ st.write(f"Using Database Branch: `{selected_branch}`")
 # Get SQLAlchemy engine for the selected branch
 engine = get_sqlalchemy_engine()
 
+# ✅ Explicitly set the schema before running queries
+with engine.connect() as connection:
+    connection.execute(f"SET search_path TO {selected_branch}")
+
+# ✅ Fetch products from the correct schema
+query = "SELECT * FROM products"
+try:
+    df_products = pd.read_sql(query, con=engine)
+    st.write("✅ Successfully fetched product data from branch:", selected_branch)
+except Exception as e:
+    st.error(f"❌ Error fetching products: {e}")
+    st.stop()
+
+
 # Fetch products from the `products` table
 query = "SELECT * FROM products"
 try:
