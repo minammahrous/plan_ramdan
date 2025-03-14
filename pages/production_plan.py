@@ -77,9 +77,30 @@ if selected_product:
     # Input: Number of Batches
     num_batches = st.number_input("Enter number of batches:", min_value=1, step=1, key="num_batches")
 
-    # Initialize DataFrame for Planning
-    if "df_batches" not in st.session_state:
-        st.session_state["df_batches"] = pd.DataFrame()
+    
+# Initialize DataFrame in session_state if not already stored
+if "df" not in st.session_state:
+    st.session_state.df = pd.DataFrame({
+        "Product": ["Arthfree 20 mg (20 K)"] * 8,
+        "Batch Number": ["a", "a", "a", "b", "c", "a", "b", "c"],
+        "GP65": [20, 20, 20, 20, 20, 20, 20, 20],
+        "Fette1090": [10, 10, 10, 10, 10, 10, 10, 10],
+        "GC750": [12, 12, 12, 12, 12, 12, 12, 12],
+        "CP3": [8.57, 8.57, 8.57, 8.57, 8.57, 8.57, 8.57, 8.57]
+    })
+
+df = st.session_state.df
+
+# Display the table
+selected_row = st.dataframe(df)
+
+# Select row for deletion (dummy example for selecting first row)
+if not df.empty:
+    selected_index = df.index[0]  # Replace with selection logic
+
+    if st.button("Delete"):
+        st.session_state.df = df.drop(selected_index).reset_index(drop=True)
+        st.rerun()  # Rerun the script to reflect changes
 
     batch_data = []
 
