@@ -1,134 +1,101 @@
 import streamlit as st
-import pandas as pd
 import psycopg2
-from db import get_db_connection, get_branches
-from auth import check_authentication
+import pandas as pd
+import json
+from decimal import Decimal
+from psycopg2.extras import DictCursor
 
-# Ensure user is authenticated
-check_authentication()
+# Database connection function
+def get_connection(branch):
+    return psycopg2.connect(
+        dbname="neondb",
+        user=st.secrets["user"],
+        password=st.secrets["password"],
+        host=st.secrets["host"],
+        options=f"-c search_path={branch}"
+    )
 
+# Fetch available branches
+def get_branches():
+    conn = get_connection("public")  # Assuming branches table is in public schema
+    query = "SELECT branch_name FROM branches;"
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df["branch_name"].tolist()
+
+# Fetch available products
+def get_products(branch):
+    conn = get_connection(branch)
+    query = "SELECT name, batch_size FROM product;"
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+
+# Fetch production rates for a product
+def get_rates(branch, product):
+    conn = get_connection(branch)
+    query = """
+    SELECT machine, rate 
+    FROM rates 
+    WHERE product = %s;
+    """
+    with conn.cursor(cursor_factory=DictCursor) as cur:
+        cur.execute(query, (product,))
+        rates = cur.fetchall()
+    conn.close()
+    return {row["machine"]: Decimal(row["rate"]) for row in rates}
+
+# Streamlit UI
 st.title("Production Plan")
 
-# Ensure branches are loaded
-if "branches" not in st.session_state:
-    st.session_state["branches"] = get_branches()
+# Select database branch
+branches = get_branches()
+branch = st.selectbox("Select Database Branch:", branches)
 
-# Ensure session state has a valid branch
-if "branch" not in st.session_state or st.session_state["branch"] not in st.session_state["branches"]:
-    st.session_state["branch"] = st.session_state["branches"][0]
+# Select product
+products_df = get_products(branch)
+product_options = products_df["name"].tolist()
+selected_product = st.selectbox("Select a Product:", product_options)
 
-# Branch selection
-selected_branch = st.selectbox(
-    "Select Database Branch:",
-    st.session_state["branches"],
-    index=st.session_state["branches"].index(st.session_state["branch"])
-)
+# Display batch size
+batch_size = products_df[products_df["name"] == selected_product]["batch_size"].values[0]
+st.write(f"**Batch Size:** {batch_size} boxes")
 
-if selected_branch != st.session_state["branch"]:
-    st.session_state["branch"] = selected_branch
-    st.rerun()
+# Input number of batches
+num_batches = st.number_input("Enter number of batches:", min_value=1, step=1)
 
-st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
-
-# Connect to the selected branch
-conn = get_db_connection()
-if not conn:
-    st.error("❌ Database connection failed.")
-    st.stop()
-
-cur = conn.cursor()
-
-# Fetch Products
-cur.execute("SELECT name, batch_size, units_per_box, primary_units_per_box FROM products")
-products = cur.fetchall()
-
-if not products:
-    st.error("❌ No products found.")
-    st.stop()
-
-product_dict = {p[0]: {"batch_size": p[1], "units_per_box": p[2], "primary_units_per_box": p[3]} for p in products}
-
-# Select Product
-selected_product = st.selectbox("Select a Product:", list(product_dict.keys()))
-
-if selected_product:
-    batch_size = product_dict[selected_product]["batch_size"]
-    units_per_box = product_dict[selected_product]["units_per_box"]
-    primary_units_per_box = product_dict[selected_product]["primary_units_per_box"]
-
-    st.write(f"**Batch Size:** {batch_size} boxes")
-
-    # Fetch Machines & Rates
-    cur.execute("""
-        SELECT r.machine, r.standard_rate, m.qty_uom 
-        FROM rates r 
-        JOIN machines m ON r.machine = m.name
-        WHERE r.product = %s
-    """, (selected_product,))
-    
-    machine_rates = cur.fetchall()
-    if not machine_rates:
-        st.error("❌ No machines found with rates for this product.")
-        st.stop()
-
-    # Store machine data
-    machine_data = {m[0]: {"rate": m[1], "qty_uom": m[2]} for m in machine_rates}
-
-    # Input: Number of Batches
-    num_batches = st.number_input("Enter number of batches:", min_value=1, step=1, key="num_batches")
-
-
-# Initialize DataFrame in session_state if not already stored
-if "df_batches" not in st.session_state:
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
-
-df_batches = st.session_state["df_batches"]
-
-# Batch Data Input
+# Collect batch numbers
 batch_data = []
+for i in range(num_batches):
+    batch_number = st.text_input(f"Batch Number {i+1}:")
+    batch_data.append({"Batch Number": batch_number, "Include": True})
 
-if selected_product and num_batches:
-    for i in range(num_batches):
-        batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
-        if batch_number:
-            # Calculate Time for Each Machine
-            time_per_machine = {}
-            for machine, data in machine_data.items():
-                rate = data["rate"] or 1  # Prevent division by zero
-                qty_uom = data["qty_uom"]
+# Convert to DataFrame
+batch_df = pd.DataFrame(batch_data)
 
-                if qty_uom == "batch":
-                    time_per_machine[machine] = round(1 / rate, 2) if rate else None
-                elif qty_uom == "thousand units":
-                    time_per_machine[machine] = round((batch_size * units_per_box) / (1000 * rate), 2) if rate and units_per_box else None
-                elif qty_uom == "thousand units 1ry":
-                    time_per_machine[machine] = round((batch_size * primary_units_per_box) / (1000 * rate), 2) if rate and primary_units_per_box else None
-                else:
-                    time_per_machine[machine] = None  # Undefined unit
+# Allow user to remove unwanted batches
+if not batch_df.empty:
+    batch_df["Include"] = st.data_editor(
+        batch_df,
+        column_config={"Include": st.column_config.CheckboxColumn()},
+        disabled=["Batch Number"],  # Prevent editing batch numbers directly
+    )
 
-            # Append batch data
-            batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
+# Fetch production rates
+if st.button("Generate Production Plan"):
+    rates = get_rates(branch, selected_product)
 
-# Prevent duplication: Only add new batches
-if batch_data:
-    new_df = pd.DataFrame(batch_data)
-    st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
+    # Filter only selected batches
+    selected_batches = batch_df[batch_df["Include"] == True]["Batch Number"].tolist()
 
-# Function to delete a row
-def delete_row(index):
-    if 0 <= index < len(st.session_state["df_batches"]):
-        st.session_state["df_batches"] = st.session_state["df_batches"].drop(index).reset_index(drop=True)
-        st.rerun()  # Rerun the script to refresh the UI properly
+    production_plan = []
+    for batch in selected_batches:
+        batch_plan = {
+            "Product": selected_product,
+            "Batch Number": batch,
+        }
+        batch_plan.update(rates)
+        production_plan.append(batch_plan)
 
-# Display the DataFrame as a table with delete buttons
-st.write("### Production Plan")
-df_display = st.session_state["df_batches"].copy()
-
-if not df_display.empty:
-    for i, row in df_display.iterrows():
-        col1, col2 = st.columns([5, 1])
-        with col1:
-            st.write(row.to_dict())
-        with col2:
-            if st.button(f"Delete {i}", key=f"delete_{i}"):
-                delete_row(i)
+    # Display updated production plan
+    st.json(production_plan)
