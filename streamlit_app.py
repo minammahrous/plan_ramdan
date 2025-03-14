@@ -1,60 +1,34 @@
 import streamlit as st
-from db import get_sqlalchemy_engine, get_branches
 import pandas as pd
+from db import get_sqlalchemy_engine, get_branches
+
 # Ensure session state has a branch set
 if "branch" not in st.session_state:
     st.session_state["branch"] = "main"  # Default to 'main'
 
-# Fetch available branches
+# Fetch available branches from the `branches` table
 branches = get_branches()
 
-# ✅ Ensure the current branch is in the list; if not, set a default
+# Ensure current branch is valid
 if st.session_state["branch"] not in branches:
     st.session_state["branch"] = "main"
 
-# ✅ Dropdown to select a database branch
-selected_branch = st.selectbox(
-    "Select Database Branch:", branches, index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0
-)
-
-# Store the selected branch in session state
-st.session_state["branch"] = selected_branch
-
-# ✅ Debugging: Show selected branch
-st.write(f"Using Database Branch: `{selected_branch}`")
-
-# ✅ Get database engine for the selected branch
-engine = get_sqlalchemy_engine()
-
-# ✅ Fetch products from the 'products' table
-query = "SELECT * FROM products"
-df_products = pd.read_sql(query, engine)
-
-# ✅ Show the fetched products data
-st.write("Fetched Products Data:")
-st.dataframe(df_products)
-# Ensure session state has a branch set
-if "branch" not in st.session_state:
-    st.session_state["branch"] = "main"
-
-# Fetch available branches
-branches = get_branches()
-
 # Dropdown to select a database branch
 selected_branch = st.selectbox(
-    "Select Database Branch:", branches, index=branches.index(st.session_state["branch"])
+    "Select Database Branch:", branches, 
+    index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0
 )
 
-# Update session state with selected branch
+# Store selected branch in session state
 st.session_state["branch"] = selected_branch
 
 # Debugging output
-st.write(f"Using Database Branch: `{st.session_state['branch']}`")
+st.write(f"Using Database Branch: `{selected_branch}`")
 
-# Get SQLAlchemy engine for the selected branch
-engine = get_sqlalchemy_engine()  # No arguments needed, it reads from session state
+# Get database engine for the selected branch
+engine = get_sqlalchemy_engine()
 
-# Fetch products from the `product` table
+# Fetch products from the `products` table
 query = "SELECT * FROM products"
 df_products = pd.read_sql(query, engine)
 
