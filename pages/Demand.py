@@ -2,7 +2,7 @@ import streamlit as st
 from db import get_branches, get_sqlalchemy_engine
 import pandas as pd
 from sqlalchemy import text  # ✅ Import text from SQLAlchemy
-
+from auth import check_authentication, check_access
 # Authenticate user before anything else
 check_authentication()
 
