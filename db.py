@@ -8,9 +8,9 @@ def get_sqlalchemy_engine():
     branch = "ramdan"  # Force connection to Ramdan branch
 
     # Load database host from secrets
-    db_host = st.secrets["database"]["hosts"].get(branch, st.secrets["database"]["hosts"]["main"])
+    db_host = st.secrets["database"]["hosts"].get(branch, st.secrets["database"]["hosts"]["ramdan"])
     db_user = st.secrets["database"]["user"]
-    db_password = st.secrets["branch_passwords"].get(branch, st.secrets["branch_passwords"]["main"])
+    db_password = st.secrets["branch_passwords"].get(branch, st.secrets["branch_passwords"]["ramdan"])
     db_name = st.secrets["database"]["database"]  # Same database name, different branches
 
     # ✅ Construct the database URL dynamically
