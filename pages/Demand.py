@@ -24,7 +24,7 @@ st.write(f"Using Database Branch: `{st.session_state['branch']}`")
 engine = get_sqlalchemy_engine()  # No arguments needed, it reads from session state
 
 # Fetch products from the `product` table
-query = "SELECT * FROM product"
+query = "SELECT * FROM products"
 df_products = pd.read_sql(query, engine)
 
 # Product selection
