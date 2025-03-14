@@ -123,14 +123,15 @@ if selected_product:
     if st.button("Approve & Save Plan") and not st.session_state["df_batches"].empty:
         for _, row in st.session_state["df_batches"].iterrows():
             for machine in machine_data.keys():
-                time_value = row.get(machine, None)  # Get calculated time
+                time_value = row.get(machine, None)  # Get calculated time for machine
 
+        # Ensure `time` column is used instead of `production_time`
                 cur.execute("""
                     INSERT INTO production_plan 
                     (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
                     VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
                 """, (row["Product"], row["Batch Number"], machine, time_value))
-        
+
         conn.commit()
         st.success("✅ Production plan saved successfully!")
         st.session_state["df_batches"] = pd.DataFrame()  # Clear after saving
