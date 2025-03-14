@@ -26,6 +26,7 @@ selected_branch = st.selectbox(
 
 if selected_branch != st.session_state["branch"]:
     st.session_state["branch"] = selected_branch
+    st.session_state["df_batches"] = pd.DataFrame()  # Reset when branch changes
     st.rerun()
 
 st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
@@ -87,8 +88,8 @@ if selected_product:
     for i in range(num_batches):
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
         if batch_number:
-            # Ensure batch number is unique before adding
-            if batch_number in st.session_state["df_batches"]["Batch Number"].values:
+            # Prevent duplicate check error when the dataframe is empty
+            if not st.session_state["df_batches"].empty and batch_number in st.session_state["df_batches"]["Batch Number"].values:
                 st.warning(f"Batch {batch_number} already exists! Skipping duplicate.")
                 continue
 
