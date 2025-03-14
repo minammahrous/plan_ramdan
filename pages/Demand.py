@@ -7,12 +7,12 @@ from auth import check_authentication, check_access
 # Authenticate user and get user details
 user = check_authentication()
 
-# Debugging to check user data
+# Debugging: Ensure user details are fetched correctly
 st.write(f"Debug: User details -> {user}")
 
-# Ensure user is a dictionary
-if not isinstance(user, dict):
-    st.error("Authentication failed: User details not available.")
+# Ensure user is a dictionary and contains 'branch'
+if not isinstance(user, dict) or "branch" not in user:
+    st.error("Authentication failed: User details not available or invalid.")
     st.stop()
 
 check_access(["planner"])
@@ -24,7 +24,7 @@ st.title("Production Planning Dashboard")
 branches = get_branches()
 
 # Get user's assigned branch
-user_branch = user.get("branch", "main")  # Default to 'main' if not found
+user_branch = user["branch"]  # Ensured valid from authentication
 
 # Ensure session state has a valid branch
 if "branch" not in st.session_state or st.session_state["branch"] not in branches:
