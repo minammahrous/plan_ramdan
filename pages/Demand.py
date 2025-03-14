@@ -13,16 +13,15 @@ check_access(["planner"])
 st.set_page_config(page_title="Production Planning", layout="wide")
 st.title("Production Planning Dashboard")
 
-# Ensure session state has a branch set
-if "branch" not in st.session_state:
-    st.session_state["branch"] = "main"  # Default branch
-
 # Fetch available branches
 branches = get_branches()
 
-# Ensure the current branch is in the list; if not, reset to default
-if branches and st.session_state["branch"] not in branches:
-    st.session_state["branch"] = branches[0]  # Default to the first available branch
+# Debugging: Show fetched branches
+st.write(f"Available branches: {branches}")
+
+# Ensure session state has a branch set
+if "branch" not in st.session_state or st.session_state["branch"] not in branches:
+    st.session_state["branch"] = branches[0] if branches else "main"  # Default to first available branch
 
 # Dropdown to select a database branch
 selected_branch = st.selectbox("Select Database Branch:", branches, index=branches.index(st.session_state["branch"]) if st.session_state["branch"] in branches else 0)
@@ -33,7 +32,7 @@ if st.session_state["branch"] != selected_branch:
     st.rerun()
 
 # Debugging: Show selected branch
-st.write(f"Using Database Branch: `{selected_branch}`")
+st.write(f"Using Database Branch: `{st.session_state['branch']}`")
 
 # Get SQLAlchemy engine for the selected branch
 engine = get_sqlalchemy_engine()
