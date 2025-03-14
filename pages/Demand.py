@@ -29,7 +29,7 @@ st.write(f"Using Database Branch: `{selected_branch}`")
 
 
 # Get SQLAlchemy engine for the selected branch
-engine = get_sqlalchemy_engine()
+engine = get_sqlalchemy_engine(selected_branch)  # Pass the selected branch
 
 # ✅ Explicitly set the schema before running queries
 with engine.connect() as connection:
