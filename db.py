@@ -3,11 +3,11 @@ from sqlalchemy import create_engine
 import streamlit as st
 
 def get_sqlalchemy_engine():
-    """Returns a SQLAlchemy engine for connecting to the correct PostgreSQL branch."""
+    """Returns a SQLAlchemy engine for connecting to the Ramdan PostgreSQL branch."""
     
-    branch = st.session_state.get("branch", "main")  # Default to "main"
+    branch = "ramdan"  # Force connection to Ramdan branch
 
-    # Load database host from secrets based on the branch
+    # Load database host from secrets
     db_host = st.secrets["database"]["hosts"].get(branch, st.secrets["database"]["hosts"]["main"])
     db_user = st.secrets["database"]["user"]
     db_password = st.secrets["branch_passwords"].get(branch, st.secrets["branch_passwords"]["main"])
@@ -19,9 +19,9 @@ def get_sqlalchemy_engine():
     return create_engine(db_url, pool_pre_ping=True)
 
 def get_db_connection():
-    """Establish and return a database connection based on the user's assigned branch."""
+    """Establish and return a database connection to the Ramdan branch."""
     try:
-        branch = st.session_state.get("branch", "main")  # Default to 'main'
+        branch = "ramdan"  # Force connection to Ramdan branch
 
         db_host = st.secrets["database"]["hosts"].get(branch)
         db_password = st.secrets["branch_passwords"].get(branch)
@@ -45,21 +45,5 @@ def get_db_connection():
         return None  # Return None to be handled by the caller
 
 def get_branches():
-    """Fetch available branches from the database."""
-    conn = get_db_connection()
-    if not conn:
-        return ["main"]  # Fallback to 'main' if DB connection fails
-
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT branch_name FROM public.branches")  # Explicit schema
-        branches = [row[0] for row in cur.fetchall()]
-        return branches  # ✅ Return fetched branches
-    except Exception as e:
-        print(f"❌ Failed to fetch branches: {e}")  # ✅ Log error instead of `st.error()`
-        return ["main"]
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()  # ✅ Ensure connection is always closed
+    """Return only the Ramdan branch."""
+    return ["ramdan"]  # Hardcoded to return only "ramdan"
