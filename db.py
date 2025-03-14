@@ -2,6 +2,9 @@ import psycopg2
 from sqlalchemy import create_engine
 import streamlit as st
 
+from sqlalchemy import create_engine
+import streamlit as st
+
 def get_sqlalchemy_engine():
     """Returns a SQLAlchemy engine for the selected PostgreSQL branch."""
     
@@ -12,11 +15,18 @@ def get_sqlalchemy_engine():
     db_password = st.secrets["branch_passwords"].get(branch, st.secrets["branch_passwords"]["main"])
     db_name = st.secrets["database"]["database"]
 
-    # ✅ Include search_path to switch schemas dynamically
-    db_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}/{db_name}?options=-c%20search_path={branch}"
+    # ✅ Remove `options=-c search_path={branch}`
+    db_url = f"postgresql+psycopg2://{db_user}:{db_password}@{db_host}/{db_name}"
 
-    # ✅ Return the SQLAlchemy engine
-    return create_engine(db_url, pool_pre_ping=True)
+    # ✅ Create engine without search_path
+    engine = create_engine(db_url, pool_pre_ping=True)
+
+    # ✅ Set search_path after connecting
+    with engine.connect() as connection:
+        connection.execute(f"SET search_path TO {branch}")
+
+    return engine
+
 
 def get_db_connection():
     """Establish and return a database connection based on the user's assigned branch."""
