@@ -77,99 +77,52 @@ if selected_product:
     # Input: Number of Batches
     num_batches = st.number_input("Enter number of batches:", min_value=1, step=1, key="num_batches")
 
-    
 # Initialize DataFrame in session_state if not already stored
-if "df" not in st.session_state:
-    st.session_state.df = pd.DataFrame({
-        "Product": ["Arthfree 20 mg (20 K)"] * 8,
-        "Batch Number": ["a", "a", "a", "b", "c", "a", "b", "c"],
-        "GP65": [20, 20, 20, 20, 20, 20, 20, 20],
-        "Fette1090": [10, 10, 10, 10, 10, 10, 10, 10],
-        "GC750": [12, 12, 12, 12, 12, 12, 12, 12],
-        "CP3": [8.57, 8.57, 8.57, 8.57, 8.57, 8.57, 8.57, 8.57]
-    })
+if "df_batches" not in st.session_state:
+    st.session_state.df_batches = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
 
-df = st.session_state.df
+# Generate Batch Numbers & Compute Processing Time
+batch_data = []
+for i in range(num_batches):
+    batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
+    if batch_number:
+        # Calculate Time for Each Machine
+        time_per_machine = {}
+        for machine, data in machine_data.items():
+            rate = data["rate"] or 1  # Prevent division by zero
+            qty_uom = data["qty_uom"]
 
-# Display the table
-selected_row = st.dataframe(df)
+            if qty_uom == "batch":
+                time_per_machine[machine] = round(1 / rate, 2) if rate else None
+            elif qty_uom == "thousand units":
+                time_per_machine[machine] = round((batch_size * units_per_box) / (1000 * rate), 2) if rate and units_per_box else None
+            elif qty_uom == "thousand units 1ry":
+                time_per_machine[machine] = round((batch_size * primary_units_per_box) / (1000 * rate), 2) if rate and primary_units_per_box else None
+            else:
+                time_per_machine[machine] = None  # Undefined unit
 
-# Select row for deletion (dummy example for selecting first row)
-if not df.empty:
-    selected_index = df.index[0]  # Replace with selection logic
+        # Append batch data
+        batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-    if st.button("Delete"):
-        st.session_state.df = df.drop(selected_index).reset_index(drop=True)
-        st.rerun()  # Rerun the script to reflect changes
-
-    batch_data = []
-
-    # Generate Batch Numbers
-    for i in range(num_batches):
-        batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
-        if batch_number:
-            # Calculate Time for Each Machine
-            time_per_machine = {}
-            for machine, data in machine_data.items():
-                rate = data["rate"] or 1  # Prevent division by zero
-                qty_uom = data["qty_uom"]
-
-                if qty_uom == "batch":
-                    time_per_machine[machine] = round(1 / rate, 2) if rate else None
-                elif qty_uom == "thousand units":
-                    time_per_machine[machine] = round((batch_size * units_per_box) / (1000 * rate), 2) if rate and units_per_box else None
-                elif qty_uom == "thousand units 1ry":
-                    time_per_machine[machine] = round((batch_size * primary_units_per_box) / (1000 * rate), 2) if rate and primary_units_per_box else None
-                else:
-                    time_per_machine[machine] = None  # Undefined unit
-
-            # Append batch data
-            batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
-
-    # Update Session State DataFrame
-    if batch_data:
-        new_df = pd.DataFrame(batch_data)
-        st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
+# Update Session State DataFrame
+if batch_data:
+    new_df = pd.DataFrame(batch_data)
+    st.session_state.df_batches = pd.concat([st.session_state.df_batches, new_df], ignore_index=True)
 
 # Function to delete a row
 def delete_row(index):
-    df = st.session_state["df_batches"]
-    st.session_state["df_batches"] = df.drop(index).reset_index(drop=True)  # Delete & reset index
+    st.session_state.df_batches = st.session_state.df_batches.drop(index).reset_index(drop=True)  # Delete & reset index
     st.rerun()  # Rerun the script to refresh the UI properly
 
 # Display the DataFrame as a table with delete buttons
 st.write("### Production Plan")
 
-# Convert DataFrame to display with delete buttons
-df_display = st.session_state["df_batches"].copy()
+if not st.session_state.df_batches.empty:
+    for index, row in st.session_state.df_batches.iterrows():
+        col1, col2 = st.columns([5, 1])  # Create columns for row + delete button
+        col1.write(row.to_dict())  # Display row details
+        if col2.button("Delete", key=f"del_{index}"):
+            delete_row(index)
 
-# Use Streamlit's dataframe for a clean display
-st.dataframe(df_display, hide_index=True, use_container_width=True)
-
-# Create Delete buttons for each row
-for index in range(len(df_display)):
-    col1, col2 = st.columns([5, 1])  # Create columns for row + delete button
-    col1.write(df_display.iloc[index])  # Show row details
-    if col2.button("❌", key=f"delete_{index}"):
-        delete_row(index)
-
-# **Approve & Save Button** (Ensure unique ID)
-if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
-    for _, row in st.session_state["df_batches"].iterrows():
-        for machine in machine_data.keys():
-            time_value = row.get(machine, None)  # Get calculated time for machine
-
-            # Insert into `production_plan`
-            cur.execute("""
-                INSERT INTO production_plan 
-                (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
-                VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
-            """, (row["Product"], row["Batch Number"], machine, time_value))
-
-    conn.commit()
-    st.success("✅ Production plan saved successfully!")
-    st.session_state["df_batches"] = pd.DataFrame()  # Clear after saving
-
-# Close DB connection
-cur.close()
-conn.close()
+# Use Streamlit's dataframe display
+st.dataframe(st.session_state.df_batches, use_container_width=True)
