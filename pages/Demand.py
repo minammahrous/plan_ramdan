@@ -10,8 +10,8 @@ user = check_authentication()
 # Debugging: Ensure user details are fetched correctly
 st.write(f"Debug: User details -> {user}")
 
-# Ensure user is a dictionary and contains 'branch'
-if not isinstance(user, dict) or "branch" not in user:
+# Ensure user is valid
+if not user or not isinstance(user, dict) or "branch" not in user:
     st.error("Authentication failed: User details not available or invalid.")
     st.stop()
 
@@ -24,11 +24,11 @@ st.title("Production Planning Dashboard")
 branches = get_branches()
 
 # Get user's assigned branch
-user_branch = user["branch"]  # Ensured valid from authentication
+user_branch = user.get("branch", "main")
 
 # Ensure session state has a valid branch
 if "branch" not in st.session_state or st.session_state["branch"] not in branches:
-    st.session_state["branch"] = user_branch if user_branch in branches else branches[0]
+    st.session_state["branch"] = user_branch if user_branch in branches else (branches[0] if branches else "main")
 
 # Dropdown to select a database branch
 selected_branch = st.selectbox("Select Database Branch:", branches, 
