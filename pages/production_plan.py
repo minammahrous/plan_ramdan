@@ -110,13 +110,6 @@ if selected_product:
         new_df = pd.DataFrame(batch_data)
         st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
 
-# Initialize session state for the DataFrame
-if "df_batches" not in st.session_state:
-    st.session_state["df_batches"] = pd.DataFrame([
-        {"Product": "Product A", "Batch Number": "B001", "Machine 1": 5, "Machine 2": 7},
-        {"Product": "Product B", "Batch Number": "B002", "Machine 1": 6, "Machine 2": 8}
-    ])
-
 # Function to delete a row
 def delete_row(index):
     df = st.session_state["df_batches"]
@@ -134,28 +127,27 @@ st.dataframe(df_display, hide_index=True, use_container_width=True)
 
 # Create Delete buttons for each row
 for index in range(len(df_display)):
-    if st.button(f"❌ Delete Row {index + 1}", key=f"delete_{index}"):
+    col1, col2 = st.columns([5, 1])  # Create columns for row + delete button
+    col1.write(df_display.iloc[index])  # Show row details
+    if col2.button("❌", key=f"delete_{index}"):
         delete_row(index)
+
 # **Approve & Save Button** (Ensure unique ID)
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
-    st.success("Plan Approved & Saved!")  # Replace with DB save logic
+    for _, row in st.session_state["df_batches"].iterrows():
+        for machine in machine_data.keys():
+            time_value = row.get(machine, None)  # Get calculated time for machine
 
-    # Approve & Save to Database
-    if st.button("Approve & Save Plan") and not st.session_state["df_batches"].empty:
-        for _, row in st.session_state["df_batches"].iterrows():
-            for machine in machine_data.keys():
-                time_value = row.get(machine, None)  # Get calculated time for machine
+            # Insert into `production_plan`
+            cur.execute("""
+                INSERT INTO production_plan 
+                (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
+                VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
+            """, (row["Product"], row["Batch Number"], machine, time_value))
 
-        # Ensure `time` column is used instead of `production_time`
-                cur.execute("""
-                    INSERT INTO production_plan 
-                    (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
-                    VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
-                """, (row["Product"], row["Batch Number"], machine, time_value))
-
-        conn.commit()
-        st.success("✅ Production plan saved successfully!")
-        st.session_state["df_batches"] = pd.DataFrame()  # Clear after saving
+    conn.commit()
+    st.success("✅ Production plan saved successfully!")
+    st.session_state["df_batches"] = pd.DataFrame()  # Clear after saving
 
 # Close DB connection
 cur.close()
