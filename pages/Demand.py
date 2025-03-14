@@ -1,5 +1,6 @@
 import streamlit as st
 from db import get_branches , get_sqlalchemy_engine
+import pandas as pd
 
 st.set_page_config(page_title="Production Planning", layout="wide")
 
