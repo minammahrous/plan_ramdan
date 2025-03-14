@@ -26,7 +26,7 @@ if user_info:
     )
 
     if page == "Production Plan":
-        st.experimental_set_query_params(page="production_plan")
+        st.set_query_params(page="production_plan")
         st.rerun()
     
     elif page == "Reports":
