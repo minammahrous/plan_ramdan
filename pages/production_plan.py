@@ -8,24 +8,33 @@ check_authentication()
 
 st.title("Production Plan")
 
-# Fetch available branches from the database
-branches = get_branches()
+# Fetch available branches only once
+if "branches" not in st.session_state:
+    st.session_state["branches"] = get_branches()
 
 # Ensure session state has a valid branch
-if "branch" not in st.session_state or st.session_state["branch"] not in branches:
-    st.session_state["branch"] = branches[0]  # Default to the first available branch
+if "branch" not in st.session_state:
+    st.session_state["branch"] = st.session_state["branches"][0]  # Default to the first branch
 
-# Create branch selection dropdown
-selected_branch = st.selectbox("Select Database Branch:", branches, index=branches.index(st.session_state["branch"]))
-st.session_state["branch"] = selected_branch  # Update session state
+# Select branch without resetting on rerun
+selected_branch = st.selectbox(
+    "Select Database Branch:", 
+    st.session_state["branches"], 
+    index=st.session_state["branches"].index(st.session_state["branch"])
+)
 
-st.sidebar.success(f"Working on branch: {selected_branch}")
+# Update session state only if the user changes the branch
+if selected_branch != st.session_state["branch"]:
+    st.session_state["branch"] = selected_branch
+    st.rerun()  # Force refresh to apply the branch change
+
+st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
 
 # Connect to the selected branch
 conn = get_db_connection()
 
 if conn:
-    st.success(f"✅ Connected to {selected_branch} branch")
+    st.success(f"✅ Connected to {st.session_state['branch']} branch")
     cur = conn.cursor()
 
     # Fetch products from the database
@@ -33,7 +42,6 @@ if conn:
     products = cur.fetchall()
 
     if products:
-        # Convert products to a dictionary for easy lookup
         product_dict = {name: batch_size for name, batch_size in products}
 
         # Product selection dropdown
@@ -43,18 +51,17 @@ if conn:
             batch_size = product_dict[selected_product]
             st.write(f"**Batch Size:** {batch_size}")
 
-            # Input for the number of batches
-            num_batches = st.number_input("Enter number of batches needed:", min_value=1, step=1)
+            # Number of batches input
+            num_batches = st.number_input("Enter number of batches needed:", min_value=1, step=1, key="num_batches")
 
             # Dynamically generate batch number inputs
             batch_numbers = []
-            for i in range(num_batches):
+            for i in range(st.session_state["num_batches"]):
                 batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
                 batch_numbers.append(batch_number)
 
             # Submit button
             if st.button("Save Production Plan"):
-                # Validate input
                 if all(batch_numbers):
                     for batch_number in batch_numbers:
                         cur.execute("""
@@ -64,7 +71,7 @@ if conn:
                         """, (selected_product, batch_number))
                     
                     conn.commit()
-                    st.success(f"✅ Production plan saved to {selected_branch} branch successfully!")
+                    st.success(f"✅ Production plan saved to {st.session_state['branch']} branch successfully!")
                 else:
                     st.error("❌ Please enter all batch numbers before saving.")
 
@@ -75,4 +82,4 @@ if conn:
     conn.close()
 
 else:
-    st.error(f"❌ Database connection failed for branch: {selected_branch}")
+    st.error(f"❌ Database connection failed for branch: {st.session_state['branch']}")
