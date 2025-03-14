@@ -26,14 +26,14 @@ if user_info:
     )
 
     if page == "Production Plan":
-        st.experimental_set_query_params(page="production_plan")  # ✅ Fixed
+        st.query_params(page="production_plan")  # ✅ Fixed
         st.rerun()
     
     elif page == "Reports":
-        st.experimental_set_query_params(page="reports")  # ✅ Fixed
+        st.query_params(page="reports")  # ✅ Fixed
         st.rerun()
     
     elif page == "Logout":
         st.session_state.clear()  # Reset session
-        st.experimental_set_query_params()  # ✅ Fixed
+        st.query_params()  # ✅ Fixed
         st.rerun()
