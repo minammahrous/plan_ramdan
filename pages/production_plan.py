@@ -86,7 +86,9 @@ if selected_product:
     for i in range(num_batches):
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
 
-        if batch_number and batch_number not in st.session_state["df_batches"]["Batch Number"].values:
+        if batch_number and "Batch Number" in st.session_state["df_batches"].columns and \
+           batch_number not in st.session_state["df_batches"]["Batch Number"].values:
+
             # Calculate Time for Each Machine
             time_per_machine = {}
             for machine, data in machine_data.items():
