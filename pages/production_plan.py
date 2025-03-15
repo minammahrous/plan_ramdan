@@ -75,20 +75,18 @@ if selected_product:
     # Store machine data
     machine_data = {m[0]: {"rate": m[1], "qty_uom": m[2]} for m in machine_rates}
 
-    # Input: Number of Batches
-    num_batches = st.number_input("Enter number of batches:", min_value=1, step=1, key="num_batches")
-
-    # Initialize DataFrame for Planning if not exists
+    # Ensure DataFrame exists in session state
     if "df_batches" not in st.session_state:
         st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
 
-    for i in range(num_batches):
-        batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
+    # Input: Batch Number
+    batch_number = st.text_input("Enter a Batch Number:")
 
-        # Ensure column exists before checking values
-        if batch_number and "Batch Number" in st.session_state["df_batches"].columns and \
-           batch_number not in st.session_state["df_batches"]["Batch Number"].values:
-
+    if st.button("➕ Add Batch") and batch_number:
+        # Ensure no duplicate batch numbers
+        if batch_number in st.session_state["df_batches"]["Batch Number"].values:
+            st.warning("⚠️ Batch number already exists.")
+        else:
             # Calculate Time for Each Machine
             time_per_machine = {}
             for machine, data in machine_data.items():
@@ -104,34 +102,41 @@ if selected_product:
                 else:
                     time_per_machine[machine] = None  # Undefined unit
 
-            # Append only unique batch numbers
+            # Append new row
             new_row = {"Product": selected_product, "Batch Number": batch_number, **time_per_machine}
             st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], pd.DataFrame([new_row])], ignore_index=True)
 
 # 🔹 Display Planned Batches (Editable)
 st.write("### Planned Batches")
 if not st.session_state["df_batches"].empty:
-    st.session_state["df_batches"] = st.data_editor(
+    updated_df = st.data_editor(
         st.session_state["df_batches"],
         num_rows="dynamic",
         key="df_editor"
     )
 
+    # Save the edited table back to session state
+    st.session_state["df_batches"] = updated_df
+
 # Approve & Save Button
-if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
-    for _, row in st.session_state["df_batches"].iterrows():
-        for machine in machine_data.keys():
-            time_value = row.get(machine, None)  # Get calculated time for machine
+if st.button("✅ Approve & Save Plan") and not st.session_state["df_batches"].empty:
+    try:
+        for _, row in st.session_state["df_batches"].iterrows():
+            for machine in machine_data.keys():
+                time_value = row.get(machine, None)  # Get calculated time for machine
 
-            cur.execute("""
-                INSERT INTO production_plan 
-                (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
-                VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
-            """, (row["Product"], row["Batch Number"], machine, time_value))
+                cur.execute("""
+                    INSERT INTO production_plan 
+                    (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
+                    VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
+                """, (row["Product"], row["Batch Number"], machine, time_value))
 
-    conn.commit()
-    st.success("✅ Production plan saved successfully!")
-    st.session_state["df_batches"] = pd.DataFrame()  # Clear after saving
+        conn.commit()
+        st.success("✅ Production plan saved successfully!")
+        st.session_state["df_batches"] = pd.DataFrame()  # Clear after saving
+    except Exception as e:
+        st.error(f"❌ Error saving data: {e}")
+        conn.rollback()
 
 # Close DB connection
 cur.close()
