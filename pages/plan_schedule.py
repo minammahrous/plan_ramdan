@@ -41,14 +41,14 @@ if not conn:
 cur = conn.cursor()
 
    
-    # Define shift types and their available hours
-    shift_types = {
+# Define shift types and their available hours
+shift_types = {
         "LD": 11,
         "NS": 22,
         "ELD": 15,
         "ND": 9,
         "OFF": 0
-    }
+}
     
     # Ensure session state variables exist
     if "scheduled_batches" not in st.session_state:
