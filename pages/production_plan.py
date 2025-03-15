@@ -80,7 +80,7 @@ if selected_product:
 
     # Initialize DataFrame for Planning if not exists
     if "df_batches" not in st.session_state:
-        st.session_state["df_batches"] = pd.DataFrame(columns=[ "Product", "Batch Number"] + list(machine_data.keys()))
+        st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
 
     batch_data = []
 
@@ -89,7 +89,7 @@ if selected_product:
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
 
         if batch_number:
-                        # Calculate Time for Each Machine
+            # Calculate Time for Each Machine
             time_per_machine = {}
             for machine, data in machine_data.items():
                 rate = data["rate"] or 1  # Prevent division by zero
@@ -107,15 +107,18 @@ if selected_product:
             # Append batch data
             batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-    # Display the DataFrame as a table with checkboxes for deletion
+    # Add new data to the DataFrame
+    if batch_data:
+        new_df = pd.DataFrame(batch_data)
+        st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
+
+# Display the DataFrame
 st.write("### Production Plan")
 
 if not st.session_state["df_batches"].empty:
     df_display = st.session_state["df_batches"].copy()
-    df_display = st.data_editor(
-        df_display,
-        use_container_width=True
-    )
+    st.dataframe(df_display, use_container_width=True)
+
 # Approve & Save Button
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
     for _, row in st.session_state["df_batches"].iterrows():
