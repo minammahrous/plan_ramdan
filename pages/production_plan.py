@@ -141,12 +141,7 @@ if not st.session_state["df_batches"].empty:
         use_container_width=True
     )
 
-    # Update session state to reflect checkbox selections
-    st.session_state["df_batches"]["Select"] = df_display["Select"]
-
-    # Delete Selected Button
-    if st.button("❌ Delete Selected Batches"):
-        delete_selected_rows()
+  
 
 # Approve & Save Button
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
