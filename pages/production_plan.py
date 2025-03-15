@@ -156,17 +156,27 @@ if st.session_state["batch_entries"]:
 
 # Ensure "Approve & Save" Button is Always Visible
 if st.session_state["batch_entries"] and st.button("✅ Approve & Save Plan"):
+    valid_batches = []  # List to store valid records
+
     for row in st.session_state["batch_entries"]:
         for machine in machine_data.keys():
             time_value = row.get(machine, None)
 
-            cur.execute("""
-                INSERT INTO production_plan 
-                (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
-                VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
-            """, (row["Product"], row["Batch Number"], machine, time_value))
+            if time_value is not None:  # ✅ Skip records where time is None
+                valid_batches.append((row["Product"], row["Batch Number"], machine, time_value))
 
-    conn.commit()
-    st.success("✅ Production plan saved successfully!")
+    if valid_batches:
+        # Insert only valid batches into the database
+        cur.executemany("""
+            INSERT INTO production_plan 
+            (product, batch_number, machine, planned_start_datetime, planned_end_datetime, time, updated_at)
+            VALUES (%s, %s, %s, NOW(), NOW(), %s, NOW())
+        """, valid_batches)
+
+        conn.commit()
+        st.success(f"✅ {len(valid_batches)} records saved successfully!")
+    else:
+        st.warning("⚠️ No valid batches to save. All records had missing time values.")
+
     st.session_state["batch_entries"] = []
     st.rerun()
