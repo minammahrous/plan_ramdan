@@ -81,7 +81,7 @@ data = []  # Data for Gantt chart
     
     # Display storage frames & shift selection
 st.write("### Machine Storage Frames")
-    for machine in machines:
+for machine in machines:
         st.write(f"#### {machine}")
         for batch in st.session_state["storage_frames"][machine]:
             if st.button(f"Add {batch['batch_number']} ({batch['product']})", key=f"add_{machine}_{batch['batch_number']}"):
