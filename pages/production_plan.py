@@ -131,7 +131,7 @@ if st.session_state["batch_entries"]:
 
     batch_df = pd.DataFrame(st.session_state["batch_entries"])
 
-    updated_batches = []  # Temporary list to hold remaining batches
+    updated_batches = st.session_state["batch_entries"].copy()  # Keep a copy to update after deletion
 
     for index, row in batch_df.iterrows():
         col1, col2, col3 = st.columns([3, 3, 1])  # Layout: Batch Number | Product | Delete Button
@@ -144,21 +144,18 @@ if st.session_state["batch_entries"]:
 
         with col3:
             if st.button("🗑", key=f"delete_{index}"):  # Unique key for each batch
-                continue  # Skip adding this batch to updated list (deletes it)
-            updated_batches.append(row.to_dict())  # Keep the batch if not deleted
+                updated_batches.pop(index)  # Remove the batch
+                st.session_state["batch_entries"] = updated_batches  # Save updated batch list
+                st.rerun()  # Refresh UI after deletion
 
-    # Update session state with remaining batches
-    st.session_state["batch_entries"] = updated_batches
-    st.rerun()
-
-# Move Editable DataFrame to Bottom
+# Move Editable DataFrame to Bottom (Always Visible)
 if st.session_state["batch_entries"]:
     st.write("### Review and Edit Batches Before Saving")
     batch_df = pd.DataFrame(st.session_state["batch_entries"])
     st.session_state["batch_df"] = st.data_editor(batch_df, use_container_width=True)
 
-# Approve & Save Button
-if st.button("✅ Approve & Save Plan") and st.session_state["batch_entries"]:
+# Ensure "Approve & Save" Button is Always Visible
+if st.session_state["batch_entries"] and st.button("✅ Approve & Save Plan"):
     for row in st.session_state["batch_entries"]:
         for machine in machine_data.keys():
             time_value = row.get(machine, None)
@@ -173,25 +170,3 @@ if st.button("✅ Approve & Save Plan") and st.session_state["batch_entries"]:
     st.success("✅ Production plan saved successfully!")
     st.session_state["batch_entries"] = []
     st.rerun()
-
-# Restart Form Button (Preserves Authentication)
-if st.button("🔄 Restart Form"):
-    branch = st.session_state["branch"]
-    authenticated_user = st.session_state.get("authenticated_user")
-
-    keys_to_clear = [
-        key for key in st.session_state.keys() 
-        if key.startswith("batch_") or key in ["batch_entries", "num_batches", "selected_product"]
-    ]
-    
-    for key in keys_to_clear:
-        del st.session_state[key]
-
-    st.session_state["branch"] = branch  
-    if authenticated_user:
-        st.session_state["authenticated_user"] = authenticated_user  
-
-    st.rerun()
-
-cur.close()
-conn.close()
