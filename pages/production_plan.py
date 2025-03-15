@@ -107,17 +107,22 @@ if selected_product:
             # Append batch data
             batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-    # Add new data to the DataFrame
+    # Append new batches to session DataFrame
     if batch_data:
-        new_df = pd.DataFrame(batch_data)
-        st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
+        df_new_batches = pd.DataFrame(batch_data)
+        st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], df_new_batches], ignore_index=True)
 
-# Display the DataFrame
+# Display the Editable DataFrame
 st.write("### Production Plan")
 
 if not st.session_state["df_batches"].empty:
-    df_display = st.session_state["df_batches"].copy()
-    st.dataframe(df_display, use_container_width=True)
+    edited_df = st.data_editor(
+        st.session_state["df_batches"],
+        use_container_width=True
+    )
+
+    # Update session state with edited data
+    st.session_state["df_batches"] = edited_df
 
 # Approve & Save Button
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
