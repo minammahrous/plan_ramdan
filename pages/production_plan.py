@@ -76,7 +76,7 @@ if selected_product:
     machine_data = {m[0]: {"rate": m[1], "qty_uom": m[2]} for m in machine_rates}
 
     # Input: Number of Batches
-    num_batches = st.number_input("Enter number of batches:", min_value=1, step=1, key="num_batches")
+    num_batches = st.number_input("Enter number of batches:", min_value=0, step=1, key="num_batches")
 
     # Initialize DataFrame for Planning if not exists
     if "df_batches" not in st.session_state or st.session_state["df_batches"].empty:
