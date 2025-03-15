@@ -24,7 +24,7 @@ if user_info:
         st.sidebar.info(f"Assigned branch: {selected_branch}")
 
     # Establish database connection based on branch
-    conn = get_db_connection()
+    conn = get_db_connection(st.session_state["branch"])
     cur = conn.cursor()
     
     # Define shift types and their available hours
