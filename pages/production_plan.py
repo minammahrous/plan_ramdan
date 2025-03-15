@@ -105,7 +105,15 @@ if selected_product:
                     time_per_machine[machine] = None  # Undefined unit
 
             # Append batch data
-            batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
+            # Check if batch already exists in df_batches, update instead of adding
+if batch_number in st.session_state["df_batches"]["Batch Number"].values:
+    st.session_state["df_batches"].loc[st.session_state["df_batches"]["Batch Number"] == batch_number, :] = \
+        {"Product": selected_product, "Batch Number": batch_number, **time_per_machine}
+else:
+    st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], 
+                                                pd.DataFrame([{"Product": selected_product, "Batch Number": batch_number, **time_per_machine}])],
+                                               ignore_index=True)
+
 
     # Add new batch data to the session state DataFrame
     if batch_data:
