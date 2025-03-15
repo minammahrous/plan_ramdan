@@ -78,14 +78,14 @@ if selected_product:
     # Input: Number of Batches
     num_batches = st.number_input("Enter number of batches:", min_value=1, step=1, key="num_batches")
 
-    # Ensure session state DataFrame exists
+    # Initialize DataFrame for Planning if not exists
     if "df_batches" not in st.session_state:
         st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
 
-    # Generate & Append Only New Batches
     for i in range(num_batches):
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
 
+        # Ensure column exists before checking values
         if batch_number and "Batch Number" in st.session_state["df_batches"].columns and \
            batch_number not in st.session_state["df_batches"]["Batch Number"].values:
 
@@ -108,17 +108,14 @@ if selected_product:
             new_row = {"Product": selected_product, "Batch Number": batch_number, **time_per_machine}
             st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], pd.DataFrame([new_row])], ignore_index=True)
 
-# Display the Editable DataFrame
-st.write("### Production Plan")
-
+# 🔹 Display Planned Batches (Editable)
+st.write("### Planned Batches")
 if not st.session_state["df_batches"].empty:
-    edited_df = st.data_editor(
+    st.session_state["df_batches"] = st.data_editor(
         st.session_state["df_batches"],
-        use_container_width=True
+        num_rows="dynamic",
+        key="df_editor"
     )
-
-    # Update session state with edited data
-    st.session_state["df_batches"] = edited_df
 
 # Approve & Save Button
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
