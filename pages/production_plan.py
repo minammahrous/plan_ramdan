@@ -18,17 +18,17 @@ if "branch" not in st.session_state or st.session_state["branch"] not in st.sess
     st.session_state["branch"] = st.session_state["branches"][0]
 
 # Branch selection
-# Ensure product selection is always available
-selected_product = st.session_state.get("selected_product")
-
-selected_product = st.selectbox(
-    "Select a Product:", 
-    list(product_dict.keys()), 
-    index=list(product_dict.keys()).index(selected_product) if selected_product in product_dict else 0
+selected_branch = st.selectbox(
+    "Select Database Branch:",
+    st.session_state["branches"],
+    index=st.session_state["branches"].index(st.session_state["branch"])
 )
 
-# Store selected product in session state
-st.session_state["selected_product"] = selected_product
+if selected_branch != st.session_state["branch"]:
+    st.session_state["branch"] = selected_branch
+    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])  # Reset DataFrame
+    st.session_state["selected_product"] = None  # Reset product selection
+    st.rerun()
 
 st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
 
@@ -48,29 +48,32 @@ if not products:
     st.error("❌ No products found.")
     st.stop()
 
+# Create product dictionary
 product_dict = {p[0]: {"batch_size": p[1], "units_per_box": p[2], "primary_units_per_box": p[3]} for p in products}
 
-# Always show the product selectbox
-selected_product = st.selectbox(
-    "Select a Product:", 
-    list(product_dict.keys()), 
-    index=list(product_dict.keys()).index(st.session_state.get("selected_product", list(product_dict.keys())[0])),
-)
+# Ensure product selection is always available
+selected_product = st.session_state.get("selected_product")
 
-# Store selected product in session state
-st.session_state["selected_product"] = selected_product
+# Check if product_dict exists before using it
+if product_dict:
+    selected_product = st.selectbox(
+        "Select a Product:",
+        list(product_dict.keys()),
+        index=list(product_dict.keys()).index(selected_product) if selected_product in product_dict else 0
+    )
 
-
-# Fetch product details only if a product is selected
-if selected_product:
-    batch_size = product_dict[selected_product]["batch_size"]
-    units_per_box = product_dict[selected_product]["units_per_box"]
-    primary_units_per_box = product_dict[selected_product]["primary_units_per_box"]
-
-    st.write(f"**Batch Size:** {batch_size} boxes")
+    # Store selected product in session state
+    st.session_state["selected_product"] = selected_product
 else:
-    st.warning("⚠️ Please select a product.")
-    st.stop()  # Prevent further execution
+    st.warning("⚠️ No products available. Please check your database.")
+    st.stop()
+
+# Fetch product details
+batch_size = product_dict[selected_product]["batch_size"]
+units_per_box = product_dict[selected_product]["units_per_box"]
+primary_units_per_box = product_dict[selected_product]["primary_units_per_box"]
+
+st.write(f"**Batch Size:** {batch_size} boxes")
 
 # Fetch Machines & Rates
 cur.execute("""
@@ -104,7 +107,7 @@ for i in range(num_batches):
 
     if i == 0:
         batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
-        if batch_number.isnumeric():  # Check if numeric
+        if batch_number.isnumeric():
             starting_batch_number = int(batch_number)
     else:
         if starting_batch_number is not None:
@@ -170,7 +173,7 @@ if st.button("✅ Approve & Save Plan") and not st.session_state["df_batches"].e
 
 # Restart Form Button
 if st.button("🔄 Restart Form"):
-    st.session_state.clear()  # Clears all session state except authentication
+    st.session_state.clear()
     st.rerun()
 
 cur.close()
