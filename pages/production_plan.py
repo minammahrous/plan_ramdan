@@ -53,16 +53,15 @@ product_dict = {p[0]: {"batch_size": p[1], "units_per_box": p[2], "primary_units
 if "product_selected" not in st.session_state:
     st.session_state["product_selected"] = False
 
-if not st.session_state["product_selected"]:
-    selected_product = st.selectbox("Select a Product:", list(product_dict.keys()), key="selected_product")
-    st.session_state["product_selected"] = True
-    st.session_state["selected_product"] = selected_product  # Store in session state
-else:
-    selected_product = st.session_state.get("selected_product", None)
+# Ensure product selection is always available
+selected_product = st.session_state.get("selected_product")
 
 if selected_product is None:
-    st.warning("⚠️ Please select a product.")
-    st.stop()
+    selected_product = st.selectbox("Select a Product:", list(product_dict.keys()))
+    if selected_product:  
+        st.session_state["selected_product"] = selected_product  # Store selection in session state
+else:
+    st.write(f"**Selected Product:** {selected_product}")
 
     st.write(f"**Batch Size:** {batch_size} boxes")
 
