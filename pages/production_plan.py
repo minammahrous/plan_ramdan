@@ -18,16 +18,17 @@ if "branch" not in st.session_state or st.session_state["branch"] not in st.sess
     st.session_state["branch"] = st.session_state["branches"][0]
 
 # Branch selection
-selected_branch = st.selectbox(
-    "Select Database Branch:",
-    st.session_state["branches"],
-    index=st.session_state["branches"].index(st.session_state["branch"])
+# Ensure product selection is always available
+selected_product = st.session_state.get("selected_product")
+
+selected_product = st.selectbox(
+    "Select a Product:", 
+    list(product_dict.keys()), 
+    index=list(product_dict.keys()).index(selected_product) if selected_product in product_dict else 0
 )
 
-if selected_branch != st.session_state["branch"]:
-    st.session_state["branch"] = selected_branch
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])  # Reset DataFrame when branch changes
-    st.rerun()
+# Store selected product in session state
+st.session_state["selected_product"] = selected_product
 
 st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
 
