@@ -139,3 +139,9 @@ if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_s
 # Close DB connection
 cur.close()
 conn.close()
+# Restart Form Button
+if st.button("🔄 Restart Form"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]  # Clear all session state variables
+    st.rerun()  # Refresh the app to reset everything
+
