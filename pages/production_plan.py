@@ -89,12 +89,7 @@ if selected_product:
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
 
         if batch_number:
-            # Only check for duplicates if DataFrame is NOT empty
-            if not st.session_state["df_batches"].empty and batch_number in st.session_state["df_batches"]["Batch Number"].tolist():
-                st.warning(f"Batch {batch_number} already exists! Skipping duplicate.")
-                continue  # Skip duplicate batch numbers
-
-            # Calculate Time for Each Machine
+                        # Calculate Time for Each Machine
             time_per_machine = {}
             for machine, data in machine_data.items():
                 rate = data["rate"] or 1  # Prevent division by zero
@@ -110,18 +105,12 @@ if selected_product:
                     time_per_machine[machine] = None  # Undefined unit
 
             # Append batch data
-            batch_data.append({"Select": False, "Product": selected_product, "Batch Number": batch_number, **time_per_machine})
+            batch_data.append({"Select": True, "Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
     # Update Session State DataFrame only if new batch data is provided
     if batch_data:
         new_df = pd.DataFrame(batch_data)
         st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
-
-# Function to delete selected rows
-def delete_selected_rows():
-    if "df_batches" in st.session_state and not st.session_state["df_batches"].empty:
-        st.session_state["df_batches"] = st.session_state["df_batches"][st.session_state["df_batches"]["Select"] == False].reset_index(drop=True)
-        st.rerun()
 
 # Display the DataFrame as a table with checkboxes for deletion
 st.write("### Production Plan")
