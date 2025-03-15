@@ -26,8 +26,8 @@ selected_branch = st.selectbox(
 
 if selected_branch != st.session_state["branch"]:
     st.session_state["branch"] = selected_branch
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])  # Reset DataFrame
-    st.session_state["selected_product"] = None  # Reset product selection
+    st.session_state["batch_entries"] = []  # Reset all batches when switching branches
+    st.session_state["selected_product"] = None
     st.rerun()
 
 st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
@@ -51,22 +51,9 @@ if not products:
 # Create product dictionary
 product_dict = {p[0]: {"batch_size": p[1], "units_per_box": p[2], "primary_units_per_box": p[3]} for p in products}
 
-# Ensure product selection is always available
-selected_product = st.session_state.get("selected_product")
-
-# Check if product_dict exists before using it
-if product_dict:
-    selected_product = st.selectbox(
-        "Select a Product:",
-        list(product_dict.keys()),
-        index=list(product_dict.keys()).index(selected_product) if selected_product in product_dict else 0
-    )
-
-    # Store selected product in session state
-    st.session_state["selected_product"] = selected_product
-else:
-    st.warning("⚠️ No products available. Please check your database.")
-    st.stop()
+# Select Product
+selected_product = st.selectbox("Select a Product:", list(product_dict.keys()))
+st.session_state["selected_product"] = selected_product
 
 # Fetch product details
 batch_size = product_dict[selected_product]["batch_size"]
@@ -91,17 +78,17 @@ if not machine_rates:
 # Store machine data
 machine_data = {m[0]: {"rate": m[1], "qty_uom": m[2]} for m in machine_rates}
 
-# Input: Number of Batches (Min set to 0)
+# Batch Storage (Use a Temporary List)
+if "batch_entries" not in st.session_state:
+    st.session_state["batch_entries"] = []
+
+# Number of Batches (Min set to 0)
 num_batches = st.number_input("Enter number of batches:", min_value=0, step=1, key="num_batches")
 
-# Initialize DataFrame for Planning if not exists
-if "df_batches" not in st.session_state or st.session_state["df_batches"].empty:
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
-
+# Generate Batch Numbers with Auto-Increment
 batch_data = []
 starting_batch_number = None
 
-# Generate Batch Numbers with Auto-Increment
 for i in range(num_batches):
     batch_key = f"batch_{i}"
 
@@ -115,11 +102,11 @@ for i in range(num_batches):
         else:
             batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
 
-    if batch_number and batch_number not in st.session_state["df_batches"]["Batch Number"].values:
+    if batch_number:
         # Calculate Time for Each Machine
         time_per_machine = {}
         for machine, data in machine_data.items():
-            rate = data["rate"] or 1  # Prevent division by zero
+            rate = data["rate"] or 1
             qty_uom = data["qty_uom"]
 
             if qty_uom == "batch":
@@ -133,31 +120,26 @@ for i in range(num_batches):
 
         batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-if batch_data:
-    new_batches_df = pd.DataFrame(batch_data)
-    st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_batches_df], ignore_index=True)
-
-# Button to Add Another Product
-if st.button("➕ Add Another Product"):
-    st.session_state["selected_product"] = None
-    st.session_state["reset_batches"] = True  # Set a flag to reset batch input
-    st.rerun()
-    for key in list(st.session_state.keys()):
-        if key.startswith("batch_"):
-            del st.session_state[key]
+# Append batch data only when the user confirms
+if st.button("➕ Add Batches"):
+    st.session_state["batch_entries"].extend(batch_data)
     st.rerun()
 
-# Display the DataFrame as an editable table
-st.write("### Production Plan")
-if not st.session_state["df_batches"].empty:
-    st.session_state["df_batches"] = st.data_editor(
-        st.session_state["df_batches"],
-        use_container_width=True
-    )
+# Display All Added Batches
+if st.session_state["batch_entries"]:
+    st.write("### All Added Batches")
+    batch_df = pd.DataFrame(st.session_state["batch_entries"])
+    st.session_state["batch_df"] = st.data_editor(batch_df, use_container_width=True)
+
+# Delete a Batch Based on Counter
+delete_batch = st.number_input("Enter batch number to delete:", min_value=0, step=1)
+if st.button("🗑 Delete Batch"):
+    st.session_state["batch_entries"] = [batch for batch in st.session_state["batch_entries"] if batch["Batch Number"] != str(delete_batch)]
+    st.rerun()
 
 # Approve & Save Button
-if st.button("✅ Approve & Save Plan") and not st.session_state["df_batches"].empty:
-    for _, row in st.session_state["df_batches"].iterrows():
+if st.button("✅ Approve & Save Plan") and st.session_state["batch_entries"]:
+    for row in st.session_state["batch_entries"]:
         for machine in machine_data.keys():
             time_value = row.get(machine, None)
 
@@ -169,7 +151,7 @@ if st.button("✅ Approve & Save Plan") and not st.session_state["df_batches"].e
 
     conn.commit()
     st.success("✅ Production plan saved successfully!")
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])
+    st.session_state["batch_entries"] = []
     st.rerun()
 
 # Restart Form Button
