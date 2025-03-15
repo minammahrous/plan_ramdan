@@ -98,7 +98,7 @@ for machine in machines:
     
     # Shift Selection Table
 st.write("### Shift Availability")
-    shift_selection = {}
+shift_selection = {}
     for machine in machines:
         shift_selection[machine] = {}
         cols = st.columns(len(date_range))
