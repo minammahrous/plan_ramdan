@@ -112,18 +112,10 @@ st.write("### Production Plan")
 
 if not st.session_state["df_batches"].empty:
     df_display = st.session_state["df_batches"].copy()
-
-    # Force 'Select' column to be boolean for proper checkbox handling
-    if "Select" in df_display.columns:
-        df_display["Select"] = df_display["Select"].astype(bool)
-
     df_display = st.data_editor(
         df_display,
         use_container_width=True
     )
-
-  
-
 # Approve & Save Button
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
     for _, row in st.session_state["df_batches"].iterrows():
