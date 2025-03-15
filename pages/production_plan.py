@@ -108,10 +108,10 @@ if selected_product:
             # Check if batch already exists in df_batches, update instead of adding
 if batch_number in st.session_state["df_batches"]["Batch Number"].values:
     st.session_state["df_batches"].loc[st.session_state["df_batches"]["Batch Number"] == batch_number, :] = \
-        {"Product": selected_product, "Batch Number": batch_number, **time_per_machine}
+        {"Product": selected_product, "Batch Number": batch_number, **time}
 else:
     st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], 
-                                                pd.DataFrame([{"Product": selected_product, "Batch Number": batch_number, **time_per_machine}])],
+                                                pd.DataFrame([{"Product": selected_product, "Batch Number": batch_number, **time}])],
                                                ignore_index=True)
 
 
