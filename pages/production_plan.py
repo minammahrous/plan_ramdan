@@ -140,7 +140,8 @@ if batch_data:
 # Button to Add Another Product
 if st.button("➕ Add Another Product"):
     st.session_state["selected_product"] = None
-    st.session_state["num_batches"] = 0
+    st.session_state["reset_batches"] = True  # Set a flag to reset batch input
+st.rerun()
     for key in list(st.session_state.keys()):
         if key.startswith("batch_"):
             del st.session_state[key]
