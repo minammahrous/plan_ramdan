@@ -48,18 +48,18 @@ shift_types = {
         "OFF": 0
 }
     
-    # Ensure session state variables exist
-    if "scheduled_batches" not in st.session_state:
+# Ensure session state variables exist
+if "scheduled_batches" not in st.session_state:
         st.session_state["scheduled_batches"] = []
-    if "storage_frames" not in st.session_state:
+if "storage_frames" not in st.session_state:
         st.session_state["storage_frames"] = {}
     
     # Fetch unscheduled batches (schedule = False)
-    cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
-    unscheduled_batches = cur.fetchall()
+cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
+unscheduled_batches = cur.fetchall()
     
     # Organize batches by machine
-    for batch in unscheduled_batches:
+for batch in unscheduled_batches:
         product, batch_number, machine, time_needed = batch
         if machine not in st.session_state["storage_frames"]:
             st.session_state["storage_frames"][machine] = []
@@ -70,17 +70,17 @@ shift_types = {
         })
     
     # User selects scheduling period
-    start_date = st.date_input("Select Start Date")
-    end_date = st.date_input("Select End Date")
+start_date = st.date_input("Select Start Date")
+end_date = st.date_input("Select End Date")
     
     # Table layout: Machines as rows, Days as columns
-    machines = list(st.session_state["storage_frames"].keys())
-    date_range = pd.date_range(start=start_date, end=end_date)
+machines = list(st.session_state["storage_frames"].keys())
+date_range = pd.date_range(start=start_date, end=end_date)
     
-    data = []  # Data for Gantt chart
+data = []  # Data for Gantt chart
     
     # Display storage frames & shift selection
-    st.write("### Machine Storage Frames")
+st.write("### Machine Storage Frames")
     for machine in machines:
         st.write(f"#### {machine}")
         for batch in st.session_state["storage_frames"][machine]:
@@ -97,7 +97,7 @@ shift_types = {
                 st.rerun()
     
     # Shift Selection Table
-    st.write("### Shift Availability")
+st.write("### Shift Availability")
     shift_selection = {}
     for machine in machines:
         shift_selection[machine] = {}
@@ -107,7 +107,7 @@ shift_types = {
             shift_selection[machine][str(date.date())] = shift_types[shift]
     
     # Assign batches to timeline
-    for batch in st.session_state["scheduled_batches"]:
+for batch in st.session_state["scheduled_batches"]:
         for date in date_range:
             available_time = shift_selection[batch["machine"]][str(date.date())]
             if available_time >= batch["time_needed"]:
@@ -117,14 +117,14 @@ shift_types = {
                 break
     
     # Gantt Chart
-    if data:
+if data:
         df = pd.DataFrame(data)
         fig = px.timeline(df, x_start="start", x_end="end", y="machine", color="product", text="batch_number")
         fig.update_layout(title="Scheduled Batches", xaxis_title="Date", yaxis_title="Machine")
         st.plotly_chart(fig)
     
     # Save scheduled batches
-    if st.button("✅ Save Schedule"):
+if st.button("✅ Save Schedule"):
         for batch in st.session_state["scheduled_batches"]:
             cur.execute("UPDATE production_plan SET schedule = TRUE WHERE batch_number = %s", (batch["batch_number"],))
         conn.commit()
@@ -132,5 +132,5 @@ shift_types = {
         st.session_state["scheduled_batches"] = []
         st.rerun()
     
-    cur.close()
-    conn.close()
+cur.close()
+conn.close()
