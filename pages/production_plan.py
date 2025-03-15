@@ -80,7 +80,7 @@ if selected_product:
 
     # Initialize DataFrame for Planning if not exists
     if "df_batches" not in st.session_state:
-        st.session_state["df_batches"] = pd.DataFrame(columns=["Select", "Product", "Batch Number"] + list(machine_data.keys()))
+        st.session_state["df_batches"] = pd.DataFrame(columns=[ "Product", "Batch Number"] + list(machine_data.keys()))
 
     batch_data = []
 
@@ -105,14 +105,9 @@ if selected_product:
                     time_per_machine[machine] = None  # Undefined unit
 
             # Append batch data
-            batch_data.append({"Select": True, "Product": selected_product, "Batch Number": batch_number, **time_per_machine})
+            batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-    # Update Session State DataFrame only if new batch data is provided
-    if batch_data:
-        new_df = pd.DataFrame(batch_data)
-        st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_df], ignore_index=True)
-
-# Display the DataFrame as a table with checkboxes for deletion
+    # Display the DataFrame as a table with checkboxes for deletion
 st.write("### Production Plan")
 
 if not st.session_state["df_batches"].empty:
