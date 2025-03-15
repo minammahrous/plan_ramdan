@@ -139,9 +139,21 @@ if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_s
 # Close DB connection
 cur.close()
 conn.close()
-# Restart Form Button
+# Restart Form Button (Clears form but keeps user logged in)
 if st.button("🔄 Restart Form"):
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]  # Clear all session state variables
-    st.rerun()  # Refresh the app to reset everything
+    # Preserve authentication and branch selection
+    branch = st.session_state["branch"]  # Keep selected branch
+    authenticated_user = st.session_state.get("authenticated_user")  # Preserve authentication if needed
+
+    # Reset only form-related session variables
+    keys_to_clear = [key for key in st.session_state.keys() if key.startswith("batch_") or key in ["df_batches", "num_batches", "selected_product"]]
+    for key in keys_to_clear:
+        del st.session_state[key]
+
+    # Restore essential session state
+    st.session_state["branch"] = branch  
+    if authenticated_user:
+        st.session_state["authenticated_user"] = authenticated_user  
+
+    st.rerun()  # Refresh UI
 
