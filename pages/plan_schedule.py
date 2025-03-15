@@ -4,29 +4,41 @@ import plotly.express as px
 from auth import authenticate_user
 from db import get_branches, get_db_connection
 
-# Authenticate the user
-user_info = authenticate_user()
+# Ensure user is authenticated
+check_authentication()
 
-if user_info:
-    st.sidebar.header("Branch Selection")
-    
-    # Get available branches from the database
-    branches = get_branches()
-    
-    # Allow only admin to select branches
-    if user_info["role"] == "admin":
-        selected_branch = st.sidebar.selectbox("Select a branch to work on:", branches)
-        st.session_state["branch"] = selected_branch  # Store selected branch
-        st.sidebar.success(f"Working on branch: {selected_branch}")
-    else:
-        selected_branch = user_info["branch"]  # Assign user-specific branch
-        st.session_state["branch"] = selected_branch
-        st.sidebar.info(f"Assigned branch: {selected_branch}")
+st.title("Production Plan")
 
-    # Establish database connection based on branch
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
+# Ensure branches are loaded
+if "branches" not in st.session_state:
+    st.session_state["branches"] = get_branches()
+
+# Ensure session state has a valid branch
+if "branch" not in st.session_state or st.session_state["branch"] not in st.session_state["branches"]:
+    st.session_state["branch"] = st.session_state["branches"][0]
+
+# Branch selection
+selected_branch = st.selectbox(
+    "Select Database Branch:",
+    st.session_state["branches"],
+    index=st.session_state["branches"].index(st.session_state["branch"])
+)
+
+if selected_branch != st.session_state["branch"]:
+    st.session_state["branch"] = selected_branch
+    st.session_state["batch_entries"] = []  # Reset all batches when switching branches
+    st.session_state["selected_product"] = None
+    st.rerun()
+
+st.sidebar.success(f"Working on branch: {st.session_state['branch']}")
+
+# Connect to the selected branch
+conn = get_db_connection()
+if not conn:
+    st.error("❌ Database connection failed.")
+    st.stop()
+
+cur = conn.cursor()
     # Define shift types and their available hours
     shift_types = {
         "LD": 11,
