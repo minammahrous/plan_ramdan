@@ -134,7 +134,14 @@ if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_s
 
     conn.commit()
     st.success("✅ Production plan saved successfully!")
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])  # Clear after saving
+    # Clear inputs and reset DataFrame
+    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])
+    st.session_state["num_batches"] = 1  # Reset batch number input
+    for key in list(st.session_state.keys()):
+        if key.startswith("batch_"):  # Clear batch number inputs
+            del st.session_state[key]
+    st.rerun()
+
 
 # Close DB connection
 cur.close()
