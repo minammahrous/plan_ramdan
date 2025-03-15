@@ -49,10 +49,6 @@ if not products:
 
 product_dict = {p[0]: {"batch_size": p[1], "units_per_box": p[2], "primary_units_per_box": p[3]} for p in products}
 
-# Reset product selection if coming from "Add Another Product"
-if "product_selected" not in st.session_state:
-    st.session_state["product_selected"] = False
-
 # Ensure product selection is always available
 selected_product = st.session_state.get("selected_product")
 
@@ -63,73 +59,82 @@ if selected_product is None:
 else:
     st.write(f"**Selected Product:** {selected_product}")
 
+# Fetch product details only if a product is selected
+if selected_product:
+    batch_size = product_dict[selected_product]["batch_size"]
+    units_per_box = product_dict[selected_product]["units_per_box"]
+    primary_units_per_box = product_dict[selected_product]["primary_units_per_box"]
+
     st.write(f"**Batch Size:** {batch_size} boxes")
+else:
+    st.warning("⚠️ Please select a product.")
+    st.stop()  # Prevent further execution
 
-    # Fetch Machines & Rates
-    cur.execute("""
-        SELECT r.machine, r.standard_rate, m.qty_uom 
-        FROM rates r 
-        JOIN machines m ON r.machine = m.name
-        WHERE r.product = %s
-    """, (selected_product,))
-    
-    machine_rates = cur.fetchall()
-    if not machine_rates:
-        st.error("❌ No machines found with rates for this product.")
-        st.stop()
+# Fetch Machines & Rates
+cur.execute("""
+    SELECT r.machine, r.standard_rate, m.qty_uom 
+    FROM rates r 
+    JOIN machines m ON r.machine = m.name
+    WHERE r.product = %s
+""", (selected_product,))
+machine_rates = cur.fetchall()
 
-    # Store machine data
-    machine_data = {m[0]: {"rate": m[1], "qty_uom": m[2]} for m in machine_rates}
+if not machine_rates:
+    st.error("❌ No machines found with rates for this product.")
+    st.stop()
 
-    # Input: Number of Batches (Min set to 0)
-    num_batches = st.number_input("Enter number of batches:", min_value=0, step=1, key="num_batches")
+# Store machine data
+machine_data = {m[0]: {"rate": m[1], "qty_uom": m[2]} for m in machine_rates}
 
-    # Initialize DataFrame for Planning if not exists
-    if "df_batches" not in st.session_state or st.session_state["df_batches"].empty:
-        st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
+# Input: Number of Batches (Min set to 0)
+num_batches = st.number_input("Enter number of batches:", min_value=0, step=1, key="num_batches")
 
-    batch_data = []
-    starting_batch_number = None
+# Initialize DataFrame for Planning if not exists
+if "df_batches" not in st.session_state or st.session_state["df_batches"].empty:
+    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
 
-    # Generate Batch Numbers with Auto-Increment
-    for i in range(num_batches):
-        batch_key = f"batch_{i}"
+batch_data = []
+starting_batch_number = None
 
-        if i == 0:
-            batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
-            if batch_number.isnumeric():  # Check if numeric
-                starting_batch_number = int(batch_number)
+# Generate Batch Numbers with Auto-Increment
+for i in range(num_batches):
+    batch_key = f"batch_{i}"
+
+    if i == 0:
+        batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
+        if batch_number.isnumeric():  # Check if numeric
+            starting_batch_number = int(batch_number)
+    else:
+        if starting_batch_number is not None:
+            batch_number = st.text_input(f"Batch Number {i+1}:", value=str(starting_batch_number + i), key=batch_key)
         else:
-            if starting_batch_number is not None:
-                batch_number = st.text_input(f"Batch Number {i+1}:", value=str(starting_batch_number + i), key=batch_key)
+            batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
+
+    if batch_number and batch_number not in st.session_state["df_batches"]["Batch Number"].values:
+        # Calculate Time for Each Machine
+        time_per_machine = {}
+        for machine, data in machine_data.items():
+            rate = data["rate"] or 1  # Prevent division by zero
+            qty_uom = data["qty_uom"]
+
+            if qty_uom == "batch":
+                time_per_machine[machine] = round(1 / rate, 2) if rate else None
+            elif qty_uom == "thousand units":
+                time_per_machine[machine] = round((batch_size * units_per_box) / (1000 * rate), 2) if rate and units_per_box else None
+            elif qty_uom == "thousand units 1ry":
+                time_per_machine[machine] = round((batch_size * primary_units_per_box) / (1000 * rate), 2) if rate and primary_units_per_box else None
             else:
-                batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
+                time_per_machine[machine] = None
 
-        if batch_number and batch_number not in st.session_state["df_batches"]["Batch Number"].values:
-            # Calculate Time for Each Machine
-            time_per_machine = {}
-            for machine, data in machine_data.items():
-                rate = data["rate"] or 1  # Prevent division by zero
-                qty_uom = data["qty_uom"]
+        batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-                if qty_uom == "batch":
-                    time_per_machine[machine] = round(1 / rate, 2) if rate else None
-                elif qty_uom == "thousand units":
-                    time_per_machine[machine] = round((batch_size * units_per_box) / (1000 * rate), 2) if rate and units_per_box else None
-                elif qty_uom == "thousand units 1ry":
-                    time_per_machine[machine] = round((batch_size * primary_units_per_box) / (1000 * rate), 2) if rate and primary_units_per_box else None
-                else:
-                    time_per_machine[machine] = None
-
-            batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
-
-    if batch_data:
-        new_batches_df = pd.DataFrame(batch_data)
-        st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_batches_df], ignore_index=True)
+if batch_data:
+    new_batches_df = pd.DataFrame(batch_data)
+    st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_batches_df], ignore_index=True)
 
 # Button to Add Another Product
 if st.button("➕ Add Another Product"):
-    st.session_state["product_selected"] = False
+    st.session_state["selected_product"] = None
     st.session_state["num_batches"] = 0
     for key in list(st.session_state.keys()):
         if key.startswith("batch_"):
@@ -161,19 +166,9 @@ if st.button("✅ Approve & Save Plan") and not st.session_state["df_batches"].e
     st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])
     st.rerun()
 
-# Restart Form Button (Preserves Authentication & Branch)
+# Restart Form Button
 if st.button("🔄 Restart Form"):
-    branch = st.session_state["branch"]
-    authenticated_user = st.session_state.get("authenticated_user")
-
-    keys_to_clear = [key for key in st.session_state.keys() if key.startswith("batch_") or key in ["df_batches", "num_batches", "selected_product", "product_selected"]]
-    for key in keys_to_clear:
-        del st.session_state[key]
-
-    st.session_state["branch"] = branch  
-    if authenticated_user:
-        st.session_state["authenticated_user"] = authenticated_user  
-
+    st.session_state.clear()  # Clears all session state except authentication
     st.rerun()
 
 cur.close()
