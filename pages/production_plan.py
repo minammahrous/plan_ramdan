@@ -135,9 +135,6 @@ if not st.session_state["df_batches"].empty:
 
     df_display = st.data_editor(
         df_display,
-        column_config={"Select": st.column_config.CheckboxColumn("Delete?")},
-        disabled=["Product", "Batch Number"],  # Prevent users from modifying these fields directly
-        hide_index=True,
         use_container_width=True
     )
 
