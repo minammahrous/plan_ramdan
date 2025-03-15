@@ -27,12 +27,16 @@ if user_info:
     # Sidebar navigation
     page = st.sidebar.radio(
         "Go to:", 
-        ["Production Plan", "Reports", "Logout"]
+        ["Production Plan", "Plan Scheduler", "Reports", "Logout"]
     )
 
     # Set session state instead of query params
     if page == "Production Plan":
         st.session_state["page"] = "Production Plan"
+        st.rerun()
+    
+    elif page == "Plan Scheduler":
+        st.session_state["page"] = "Plan Scheduler"
         st.rerun()
     
     elif page == "Reports":
