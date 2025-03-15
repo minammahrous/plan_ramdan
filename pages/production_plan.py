@@ -78,17 +78,15 @@ if selected_product:
     # Input: Number of Batches
     num_batches = st.number_input("Enter number of batches:", min_value=1, step=1, key="num_batches")
 
-    # Initialize DataFrame for Planning if not exists
+    # Ensure session state DataFrame exists
     if "df_batches" not in st.session_state:
         st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
 
-    batch_data = []
-
-    # Generate Batch Numbers
+    # Generate & Append Only New Batches
     for i in range(num_batches):
         batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
 
-        if batch_number:
+        if batch_number and batch_number not in st.session_state["df_batches"]["Batch Number"].values:
             # Calculate Time for Each Machine
             time_per_machine = {}
             for machine, data in machine_data.items():
@@ -104,13 +102,9 @@ if selected_product:
                 else:
                     time_per_machine[machine] = None  # Undefined unit
 
-            # Append batch data
-            batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
-
-    # Append new batches to session DataFrame
-    if batch_data:
-        df_new_batches = pd.DataFrame(batch_data)
-        st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], df_new_batches], ignore_index=True)
+            # Append only unique batch numbers
+            new_row = {"Product": selected_product, "Batch Number": batch_number, **time_per_machine}
+            st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], pd.DataFrame([new_row])], ignore_index=True)
 
 # Display the Editable DataFrame
 st.write("### Production Plan")
