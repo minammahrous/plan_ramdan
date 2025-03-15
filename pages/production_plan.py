@@ -49,15 +49,16 @@ if not products:
 
 product_dict = {p[0]: {"batch_size": p[1], "units_per_box": p[2], "primary_units_per_box": p[3]} for p in products}
 
-# Ensure product selection is always available
-selected_product = st.session_state.get("selected_product")
+# Always show the product selectbox
+selected_product = st.selectbox(
+    "Select a Product:", 
+    list(product_dict.keys()), 
+    index=list(product_dict.keys()).index(st.session_state.get("selected_product", list(product_dict.keys())[0])),
+)
 
-if selected_product is None:
-    selected_product = st.selectbox("Select a Product:", list(product_dict.keys()))
-    if selected_product:  
-        st.session_state["selected_product"] = selected_product  # Store selection in session state
-else:
-    st.write(f"**Selected Product:** {selected_product}")
+# Store selected product in session state
+st.session_state["selected_product"] = selected_product
+
 
 # Fetch product details only if a product is selected
 if selected_product:
