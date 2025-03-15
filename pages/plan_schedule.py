@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from auth import authenticate_user
+from auth import check_authentication
 from db import get_branches, get_db_connection
 
 # Ensure user is authenticated
