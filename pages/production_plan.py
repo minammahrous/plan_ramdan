@@ -156,8 +156,26 @@ if st.button("✅ Approve & Save Plan") and st.session_state["batch_entries"]:
 
 # Restart Form Button
 if st.button("🔄 Restart Form"):
-    st.session_state.clear()
+    # Preserve authentication and branch selection
+    branch = st.session_state["branch"]
+    authenticated_user = st.session_state.get("authenticated_user")
+
+    # Reset only form-related session state variables
+    keys_to_clear = [
+        key for key in st.session_state.keys() 
+        if key.startswith("batch_") or key in ["batch_entries", "num_batches", "selected_product"]
+    ]
+    
+    for key in keys_to_clear:
+        del st.session_state[key]
+
+    # Restore essential session state values
+    st.session_state["branch"] = branch  
+    if authenticated_user:
+        st.session_state["authenticated_user"] = authenticated_user  
+
     st.rerun()
+
 
 cur.close()
 conn.close()
