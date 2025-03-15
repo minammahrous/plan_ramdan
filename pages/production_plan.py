@@ -105,15 +105,7 @@ if selected_product:
                     time_per_machine[machine] = None  # Undefined unit
 
             # Append batch data
-            # Check if batch already exists in df_batches, update instead of adding
-if batch_number in st.session_state["df_batches"]["Batch Number"].values:
-    st.session_state["df_batches"].loc[st.session_state["df_batches"]["Batch Number"] == batch_number, :] = \
-        {"Product": selected_product, "Batch Number": batch_number, **time}
-else:
-    st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], 
-                                                pd.DataFrame([{"Product": selected_product, "Batch Number": batch_number, **time}])],
-                                               ignore_index=True)
-
+            batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
     # Add new batch data to the session state DataFrame
     if batch_data:
@@ -142,14 +134,7 @@ if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_s
 
     conn.commit()
     st.success("✅ Production plan saved successfully!")
-    # Clear inputs and reset DataFrame
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])
-    st.session_state["num_batches"] = 1  # Reset batch number input
-    for key in list(st.session_state.keys()):
-        if key.startswith("batch_"):  # Clear batch number inputs
-            del st.session_state[key]
-    st.rerun()
-
+    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])  # Clear after saving
 
 # Close DB connection
 cur.close()
