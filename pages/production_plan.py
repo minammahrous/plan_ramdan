@@ -49,8 +49,16 @@ if not products:
 
 product_dict = {p[0]: {"batch_size": p[1], "units_per_box": p[2], "primary_units_per_box": p[3]} for p in products}
 
+# Reset product selection if coming from "Add Another Product"
+if "product_selected" not in st.session_state:
+    st.session_state["product_selected"] = False
+
 # Select Product
-selected_product = st.selectbox("Select a Product:", list(product_dict.keys()))
+if not st.session_state["product_selected"]:
+    selected_product = st.selectbox("Select a Product:", list(product_dict.keys()), key="selected_product")
+    st.session_state["product_selected"] = True
+else:
+    selected_product = st.session_state["selected_product"]
 
 if selected_product:
     batch_size = product_dict[selected_product]["batch_size"]
@@ -75,7 +83,7 @@ if selected_product:
     # Store machine data
     machine_data = {m[0]: {"rate": m[1], "qty_uom": m[2]} for m in machine_rates}
 
-    # Input: Number of Batches
+    # Input: Number of Batches (Min set to 0)
     num_batches = st.number_input("Enter number of batches:", min_value=0, step=1, key="num_batches")
 
     # Initialize DataFrame for Planning if not exists
@@ -83,10 +91,21 @@ if selected_product:
         st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"] + list(machine_data.keys()))
 
     batch_data = []
+    starting_batch_number = None
 
-    # Generate Batch Numbers
+    # Generate Batch Numbers with Auto-Increment
     for i in range(num_batches):
-        batch_number = st.text_input(f"Batch Number {i+1}:", key=f"batch_{i}")
+        batch_key = f"batch_{i}"
+
+        if i == 0:
+            batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
+            if batch_number.isnumeric():  # Check if numeric
+                starting_batch_number = int(batch_number)
+        else:
+            if starting_batch_number is not None:
+                batch_number = st.text_input(f"Batch Number {i+1}:", value=str(starting_batch_number + i), key=batch_key)
+            else:
+                batch_number = st.text_input(f"Batch Number {i+1}:", key=batch_key)
 
         if batch_number and batch_number not in st.session_state["df_batches"]["Batch Number"].values:
             # Calculate Time for Each Machine
@@ -102,15 +121,22 @@ if selected_product:
                 elif qty_uom == "thousand units 1ry":
                     time_per_machine[machine] = round((batch_size * primary_units_per_box) / (1000 * rate), 2) if rate and primary_units_per_box else None
                 else:
-                    time_per_machine[machine] = None  # Undefined unit
+                    time_per_machine[machine] = None
 
-            # Append batch data
             batch_data.append({"Product": selected_product, "Batch Number": batch_number, **time_per_machine})
 
-    # Add new batch data to the session state DataFrame
     if batch_data:
         new_batches_df = pd.DataFrame(batch_data)
         st.session_state["df_batches"] = pd.concat([st.session_state["df_batches"], new_batches_df], ignore_index=True)
+
+# Button to Add Another Product
+if st.button("➕ Add Another Product"):
+    st.session_state["product_selected"] = False
+    st.session_state["num_batches"] = 0
+    for key in list(st.session_state.keys()):
+        if key.startswith("batch_"):
+            del st.session_state[key]
+    st.rerun()
 
 # Display the DataFrame as an editable table
 st.write("### Production Plan")
@@ -119,30 +145,12 @@ if not st.session_state["df_batches"].empty:
         st.session_state["df_batches"],
         use_container_width=True
     )
-# Display Summary Table
-if not st.session_state["df_batches"].empty:
-    summary_df = (
-        st.session_state["df_batches"]
-        .groupby("Product")
-        .agg({"Batch Number": "count"})  # Count number of batches per product
-        .reset_index()
-    )
 
-    # Add the Total Quantity column
-    summary_df["Total Quantity"] = summary_df.apply(
-        lambda row: product_dict[row["Product"]]["batch_size"] * row["Batch Number"], axis=1
-    )
-
-    # Rename Columns for Better Display
-    summary_df.rename(columns={"Batch Number": "Number of Batches"}, inplace=True)
-
-    st.write("### Production Summary")
-    st.dataframe(summary_df, use_container_width=True)
 # Approve & Save Button
-if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
+if st.button("✅ Approve & Save Plan") and not st.session_state["df_batches"].empty:
     for _, row in st.session_state["df_batches"].iterrows():
         for machine in machine_data.keys():
-            time_value = row.get(machine, None)  # Get calculated time for machine
+            time_value = row.get(machine, None)
 
             cur.execute("""
                 INSERT INTO production_plan 
@@ -152,26 +160,23 @@ if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_s
 
     conn.commit()
     st.success("✅ Production plan saved successfully!")
-    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])  # Clear after saving
+    st.session_state["df_batches"] = pd.DataFrame(columns=["Product", "Batch Number"])
+    st.rerun()
 
-# Close DB connection
-cur.close()
-conn.close()
-# Restart Form Button (Clears form but keeps user logged in)
+# Restart Form Button (Preserves Authentication & Branch)
 if st.button("🔄 Restart Form"):
-    # Preserve authentication and branch selection
-    branch = st.session_state["branch"]  # Keep selected branch
-    authenticated_user = st.session_state.get("authenticated_user")  # Preserve authentication if needed
+    branch = st.session_state["branch"]
+    authenticated_user = st.session_state.get("authenticated_user")
 
-    # Reset only form-related session variables
-    keys_to_clear = [key for key in st.session_state.keys() if key.startswith("batch_") or key in ["df_batches", "num_batches", "selected_product"]]
+    keys_to_clear = [key for key in st.session_state.keys() if key.startswith("batch_") or key in ["df_batches", "num_batches", "selected_product", "product_selected"]]
     for key in keys_to_clear:
         del st.session_state[key]
 
-    # Restore essential session state
     st.session_state["branch"] = branch  
     if authenticated_user:
         st.session_state["authenticated_user"] = authenticated_user  
 
-    st.rerun()  # Refresh UI
+    st.rerun()
 
+cur.close()
+conn.close()
