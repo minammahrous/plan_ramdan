@@ -51,9 +51,9 @@ shift_types = {
 }
     
     # Ensure session state variables exist
-    if "scheduled_batches" not in st.session_state:
+if "scheduled_batches" not in st.session_state:
         st.session_state["scheduled_batches"] = []
-    if "storage_frames" not in st.session_state:
+if "storage_frames" not in st.session_state:
         st.session_state["storage_frames"] = {}
     
     # Fetch unscheduled batches (schedule = False)
