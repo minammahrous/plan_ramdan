@@ -119,7 +119,25 @@ if not st.session_state["df_batches"].empty:
         st.session_state["df_batches"],
         use_container_width=True
     )
+# Display Summary Table
+if not st.session_state["df_batches"].empty:
+    summary_df = (
+        st.session_state["df_batches"]
+        .groupby("Product")
+        .agg({"Batch Number": "count"})  # Count number of batches per product
+        .reset_index()
+    )
 
+    # Add the Total Quantity column
+    summary_df["Total Quantity"] = summary_df.apply(
+        lambda row: product_dict[row["Product"]]["batch_size"] * row["Batch Number"], axis=1
+    )
+
+    # Rename Columns for Better Display
+    summary_df.rename(columns={"Batch Number": "Number of Batches"}, inplace=True)
+
+    st.write("### Production Summary")
+    st.dataframe(summary_df, use_container_width=True)
 # Approve & Save Button
 if st.button("✅ Approve & Save Plan", key="approve_save") and not st.session_state["df_batches"].empty:
     for _, row in st.session_state["df_batches"].iterrows():
