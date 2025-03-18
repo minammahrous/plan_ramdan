@@ -117,14 +117,22 @@ for machine in st.session_state["storage_frames"].keys():
 
 # **Assign batches to timeline**
 data = []
+scheduled_batches_set = set()  # Track already scheduled batches
+
 for batch in st.session_state["scheduled_batches"]:
+    batch_scheduled = False  # Track if the batch is already placed
     for date in date_range:
         available_time = shift_selection[batch["machine"]][str(date.date())]
-        if available_time >= batch["time_needed"]:
+        if available_time >= batch["time_needed"] and batch["batch_number"] not in scheduled_batches_set:
             batch["start"] = date
             batch["end"] = date
             data.append(batch)
-            break
+            scheduled_batches_set.add(batch["batch_number"])  # Mark batch as scheduled
+            batch_scheduled = True
+            break  # Stop trying to schedule this batch further
+
+    if not batch_scheduled:
+        st.warning(f"⚠️ Batch {batch['batch_number']} ({batch['product']}) couldn't be scheduled!")
 
 # **Display Scheduled Batches**
 if data:
