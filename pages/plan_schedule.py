@@ -3,7 +3,15 @@ import pandas as pd
 import uuid
 from auth import check_authentication
 from db import get_branches, get_db_connection
-from pages.gantt_component.gantt_component import gantt_chart  # Import Gantt component
+import sys
+import os
+
+# Add pages/gantt_component to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gantt_component")))
+
+from gantt_component import gantt_chart  # Import Gantt component
+
+
 
 # 🔒 Ensure user is authenticated
 check_authentication()
