@@ -4,5 +4,4 @@ sqlalchemy
 bcrypt
 pandas
 streamlit-extras
-uuid
-altair
+streamlit.components.v1
