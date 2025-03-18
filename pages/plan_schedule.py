@@ -134,13 +134,33 @@ for batch in st.session_state["scheduled_batches"]:
     if not batch_scheduled:
         st.warning(f"⚠️ Batch {batch['batch_number']} ({batch['product']}) couldn't be scheduled!")
 
+# **Display Debug Information**
+st.write("### 🔍 Debugging Info")
+st.write("#### Scheduled Data for Plotly")
+st.dataframe(pd.DataFrame(data))  # Display raw data used for the Gantt chart
+
 # **Display Scheduled Batches**
 if data:
     st.write("### 📊 Scheduled Production Plan")
+    
+    # Convert to DataFrame
     df = pd.DataFrame(data)
+
+    # Ensure 'start' and 'end' are in datetime format
+    df["start"] = pd.to_datetime(df["start"])
+    df["end"] = pd.to_datetime(df["end"])
+
+    # Debugging messages
+    st.write("#### DataFrame being passed to px.timeline:")
+    st.dataframe(df)
+
+    # Plot the timeline
     fig = px.timeline(df, x_start="start", x_end="end", y="machine", color="product", text="batch_number")
     fig.update_layout(title="📆 Production Schedule", xaxis_title="Date", yaxis_title="Machine")
     st.plotly_chart(fig)
+
+else:
+    st.warning("⚠️ No batches were scheduled. Try adjusting shifts or adding more batches.")
 
 # **Save Schedule to Database**
 if st.button("✅ Save Schedule"):
