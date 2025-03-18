@@ -7,7 +7,7 @@ SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 14}
 
 def load_machines():
     engine = get_sqlalchemy_engine()
-    query = "SELECT machine FROM machines"
+    query = "SELECT name FROM machines"
     df = pd.read_sql(query, engine)
     return df["machine"].tolist()
 
