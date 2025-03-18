@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
-from db import get_sqlalchemy_engine
+import datetime
 import streamlit.components.v1 as components
+from db import get_sqlalchemy_engine
 
+# Define shift durations
 SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 14}
 
 def load_machines():
@@ -11,87 +13,94 @@ def load_machines():
     df = pd.read_sql(query, engine)
     return df["name"].tolist()
 
+def load_batches():
+    engine = get_sqlalchemy_engine()
+    query = "SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
+    df = pd.read_sql(query, engine)
+    return df
+
 def scheduler_page():
     st.title("Production Scheduler")
 
+    # Select scheduling period
     col1, col2 = st.columns(2)
-    start_date = col1.date_input("Start Date")
-    end_date = col2.date_input("End Date")
+    start_date = col1.date_input("Start Date", datetime.date.today())
+    end_date = col2.date_input("End Date", datetime.date.today() + datetime.timedelta(days=7))
 
     machines = load_machines()
     date_range = pd.date_range(start=start_date, end=end_date)
-
-    engine = get_sqlalchemy_engine()
-    query = "SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
-    df_batches = pd.read_sql(query, engine)
-
-    # Batch Selection Table
+    
+    # Button to load batches
+    if st.button("Load Batches"):
+        st.session_state.batches = load_batches()
+    
+    # Fetch unscheduled batches from session state
+    if "batches" not in st.session_state:
+        st.session_state.batches = pd.DataFrame()
+    df_batches = st.session_state.batches.copy()
+    
+    # Display batch selection
     st.subheader("Select Batches to Schedule")
-    df_batches["select"] = False
-    selected_batches = st.data_editor(df_batches, key="batch_selection", use_container_width=True)
-
-    # Shift Configuration
+    if not df_batches.empty:
+        df_batches["select"] = False
+        selected_batches = st.data_editor(df_batches, key="batch_selection", use_container_width=True)
+    else:
+        st.warning("No unscheduled batches available.")
+    
+    # Shift configuration table
     st.subheader("Shift Configuration")
     shift_df = pd.DataFrame(index=machines, columns=[date.strftime("%Y-%m-%d") for date in date_range])
     for machine in machines:
         for date in date_range:
             shift_df.loc[machine, date.strftime("%Y-%m-%d")] = st.selectbox(
                 f"{machine} - {date.strftime('%Y-%m-%d')}", SHIFT_DURATIONS.keys(), key=f"{machine}_{date}")
-
+    
+    # Display shift configuration
     st.dataframe(shift_df)
-
-    # JavaScript Scheduler
-    st.subheader("Drag & Drop Scheduling")
-    schedule_html = f"""
+    
+    # Interactive Drag-and-Drop Scheduler with interact.js
+    st.subheader("Interactive Scheduler")
+    scheduler_html = """
     <html>
     <head>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.11/interact.min.js"></script>
         <style>
-            .calendar-container {{ display: grid; grid-template-columns: repeat({len(date_range) + 1}, 1fr); gap: 5px; }}
-            .calendar-header, .calendar-cell {{ border: 1px solid #ddd; padding: 10px; text-align: center; min-height: 50px; }}
-            .calendar-header {{ font-weight: bold; background: #f8f8f8; }}
-            .batch {{ background: lightblue; padding: 5px; margin: 2px; cursor: grab; }}
+            .draggable { width: 100px; height: 50px; background: #3498db; color: white; text-align: center; cursor: move; margin: 5px; }
+            .dropzone { width: 150px; height: 100px; border: 2px dashed #ccc; display: inline-block; margin: 5px; }
         </style>
     </head>
     <body>
-        <div class="calendar-container">
-            <div class="calendar-header">Machines/Days</div>
-            {"".join([f'<div class="calendar-header">{date.strftime("%Y-%m-%d")}</div>' for date in date_range])}
-            {"".join([
-                f'<div class="calendar-cell">{machine}</div>' + 
-                "".join([f'<div class="calendar-cell" id="{machine}_{date.strftime("%Y-%m-%d")}" ondrop="drop(event)" ondragover="allowDrop(event)"></div>' for date in date_range])
-                for machine in machines
-            ])}
-        </div>
+        <div class="draggable" id="batch1">Batch 1</div>
+        <div class="dropzone" id="zone1">Drop Here</div>
 
         <script>
-            function allowDrop(ev) {{
-                ev.preventDefault();
-            }}
-
-            function drag(ev) {{
-                ev.dataTransfer.setData("text", ev.target.id);
-            }}
-
-            function drop(ev) {{
-                ev.preventDefault();
-                var data = ev.dataTransfer.getData("text");
-                ev.target.appendChild(document.getElementById(data));
-            }}
+            interact('.draggable').draggable({
+                listeners: {
+                    move(event) {
+                        event.target.style.transform = `translate(${event.pageX}px, ${event.pageY}px)`;
+                    }
+                }
+            });
+            
+            interact('.dropzone').dropzone({
+                ondrop(event) {
+                    event.target.style.backgroundColor = 'lightgreen';
+                }
+            });
         </script>
-
-        <div>
-            <h3>Unscheduled Batches</h3>
-            {"".join([f'<div id="batch_{row["batch_number"]}" class="batch" draggable="true" ondragstart="drag(event)">{row["product"]} (Batch {row["batch_number"]})</div>' for _, row in df_batches.iterrows()])}
-        </div>
     </body>
     </html>
     """
-    components.html(schedule_html, height=600)
-
+    components.html(scheduler_html, height=300)
+    
+    # Scheduler logic
+    if st.button("Start Scheduling"):
+        st.write("Processing schedule...")
+        # Implement scheduling logic here considering shift constraints
+    
     # Export scheduled data
     if st.button("Export Schedule"):
         st.write("Saving schedule to database...")
-        # Implement logic to capture updated batch placements
+        # Implement export logic
 
 scheduler_page()
