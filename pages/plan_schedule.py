@@ -1,109 +1,97 @@
 import streamlit as st
 import pandas as pd
-import uuid
-from auth import check_authentication
-from db import get_branches, get_db_connection
-import sys
-import os
+from db import get_sqlalchemy_engine
+import streamlit.components.v1 as components
 
-# Add pages/gantt_component to Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "gantt_component")))
+SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 14}
 
-from gantt_component import gantt_chart  # Import Gantt component
+def load_machines():
+    engine = get_sqlalchemy_engine()
+    query = "SELECT machine FROM machines"
+    df = pd.read_sql(query, engine)
+    return df["machine"].tolist()
 
+def scheduler_page():
+    st.title("Production Scheduler")
 
+    col1, col2 = st.columns(2)
+    start_date = col1.date_input("Start Date")
+    end_date = col2.date_input("End Date")
 
-# 🔒 Ensure user is authenticated
-check_authentication()
+    machines = load_machines()
+    date_range = pd.date_range(start=start_date, end=end_date)
 
-st.title("📅 Production Plan Scheduler (Drag & Drop)")
+    engine = get_sqlalchemy_engine()
+    query = "SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
+    df_batches = pd.read_sql(query, engine)
 
-# 🔀 Load available branches
-if "branches" not in st.session_state:
-    st.session_state["branches"] = get_branches()
+    # Batch Selection Table
+    st.subheader("Select Batches to Schedule")
+    df_batches["select"] = False
+    selected_batches = st.data_editor(df_batches, key="batch_selection", use_container_width=True)
 
-# Ensure session state has a valid branch
-if "branch" not in st.session_state or st.session_state["branch"] not in st.session_state["branches"]:
-    st.session_state["branch"] = st.session_state["branches"][0]
+    # Shift Configuration
+    st.subheader("Shift Configuration")
+    shift_df = pd.DataFrame(index=machines, columns=[date.strftime("%Y-%m-%d") for date in date_range])
+    for machine in machines:
+        for date in date_range:
+            shift_df.loc[machine, date.strftime("%Y-%m-%d")] = st.selectbox(
+                f"{machine} - {date.strftime('%Y-%m-%d')}", SHIFT_DURATIONS.keys(), key=f"{machine}_{date}")
 
-# 🔀 Branch selection dropdown
-selected_branch = st.selectbox(
-    "🔀 Select Database Branch:",
-    st.session_state["branches"],
-    index=st.session_state["branches"].index(st.session_state["branch"])
-)
+    st.dataframe(shift_df)
 
-if selected_branch != st.session_state["branch"]:
-    st.session_state["branch"] = selected_branch
-    st.session_state["scheduled_batches"] = []
-    st.rerun()
+    # JavaScript Scheduler
+    st.subheader("Drag & Drop Scheduling")
+    schedule_html = f"""
+    <html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.11/interact.min.js"></script>
+        <style>
+            .calendar-container {{ display: grid; grid-template-columns: repeat({len(date_range) + 1}, 1fr); gap: 5px; }}
+            .calendar-header, .calendar-cell {{ border: 1px solid #ddd; padding: 10px; text-align: center; min-height: 50px; }}
+            .calendar-header {{ font-weight: bold; background: #f8f8f8; }}
+            .batch {{ background: lightblue; padding: 5px; margin: 2px; cursor: grab; }}
+        </style>
+    </head>
+    <body>
+        <div class="calendar-container">
+            <div class="calendar-header">Machines/Days</div>
+            {"".join([f'<div class="calendar-header">{date.strftime("%Y-%m-%d")}</div>' for date in date_range])}
+            {"".join([
+                f'<div class="calendar-cell">{machine}</div>' + 
+                "".join([f'<div class="calendar-cell" id="{machine}_{date.strftime("%Y-%m-%d")}" ondrop="drop(event)" ondragover="allowDrop(event)"></div>' for date in date_range])
+                for machine in machines
+            ])}
+        </div>
 
-st.sidebar.success(f"✅ Working on branch: **{st.session_state['branch']}**")
+        <script>
+            function allowDrop(ev) {{
+                ev.preventDefault();
+            }}
 
-# 🔗 Database connection
-conn = get_db_connection()
-if not conn:
-    st.error("❌ Database connection failed.")
-    st.stop()
+            function drag(ev) {{
+                ev.dataTransfer.setData("text", ev.target.id);
+            }}
 
-cur = conn.cursor()
+            function drop(ev) {{
+                ev.preventDefault();
+                var data = ev.dataTransfer.getData("text");
+                ev.target.appendChild(document.getElementById(data));
+            }}
+        </script>
 
-# 📌 Fetch unscheduled batches
-cur.execute(
+        <div>
+            <h3>Unscheduled Batches</h3>
+            {"".join([f'<div id="batch_{row["batch_number"]}" class="batch" draggable="true" ondragstart="drag(event)">{row["product"]} (Batch {row["batch_number"]})</div>' for _, row in df_batches.iterrows()])}
+        </div>
+    </body>
+    </html>
     """
-    SELECT product, batch_number, machine, time 
-    FROM production_plan 
-    WHERE schedule = FALSE
-    """
-)
-unscheduled_batches = cur.fetchall()
+    components.html(schedule_html, height=600)
 
-# 📌 Convert to DataFrame
-df = pd.DataFrame(unscheduled_batches, columns=["product", "batch_number", "machine", "time"])
+    # Export scheduled data
+    if st.button("Export Schedule"):
+        st.write("Saving schedule to database...")
+        # Implement logic to capture updated batch placements
 
-# Ensure start and end s are set
-if "scheduled_batches" not in st.session_state:
-    st.session_state["scheduled_batches"] = []
-
-if not st.session_state["scheduled_batches"]:
-    for _, row in df.iterrows():
-        start = pd.Timestamp.now()
-        end = start + pd.Timedelta(hours=float(row["time"]))
-        st.session_state["scheduled_batches"].append({
-            "id": str(uuid.uuid4()),  # Unique ID
-            "name": f"{row['product']} - {row['batch_number']}",
-            "machine": row["machine"],
-            "start": start.strftime("%Y-%m-%d"),
-            "end": end.strftime("%Y-%m-%d"),
-            "progress": 50
-        })
-
-# 📊 Display Gantt Chart using custom JS component
-updated_tasks = gantt_chart(st.session_state["scheduled_batches"])
-
-# Update session state with modified schedule
-if updated_tasks:
-    st.session_state["scheduled_batches"] = updated_tasks
-    st.success("✅ Schedule updated! Click **Save** to store in the database.")
-
-# 💾 Save changes to database
-if st.button("💾 Save Schedule"):
-    try:
-        for task in st.session_state["scheduled_batches"]:
-            cur.execute(
-                """
-                UPDATE production_plan
-                SET schedule = TRUE, start_date = %s, end_date = %s
-                WHERE batch_number = %s
-                """,
-                (task["start"], task["end"], task["name"].split(" - ")[1])  # Extract batch number
-            )
-        conn.commit()
-        st.success("✅ Schedule saved successfully!")
-        st.session_state["scheduled_batches"] = []
-        st.rerun()
-    except Exception as e:
-        st.error(f"❌ Error saving schedule: {e}")
-
-cur.close()
-conn.close()
+scheduler_page()
