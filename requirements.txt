@@ -4,3 +4,4 @@ sqlalchemy
 bcrypt
 pandas
 streamlit-extras
+uuid
