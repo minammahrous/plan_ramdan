@@ -5,3 +5,5 @@ bcrypt
 pandas
 streamlit-extras
 streamlit-aggrid
+fastapi
+uvicorn
