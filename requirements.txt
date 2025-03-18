@@ -4,4 +4,3 @@ sqlalchemy
 bcrypt
 pandas
 streamlit-extras
-streamlit.components.v1
