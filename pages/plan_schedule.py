@@ -1,181 +1,72 @@
 import streamlit as st
 import pandas as pd
-import altair as alt
-import uuid
-from auth import check_authentication
-from db import get_branches, get_db_connection
+import json
+import streamlit.components.v1 as components
+from datetime import datetime, timedelta
 
-# Ensure user is authenticated
-check_authentication()
+# **🔹 Function to Generate Gantt Chart HTML**
+def gantt_chart(tasks_json):
+    """Render an interactive Gantt chart with drag-and-drop using Frappe Gantt."""
+    html_code = f"""
+    <html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.5.0/frappe-gantt.min.js"></script>
+        <style>
+            .gantt-target {{
+                width: 100%;
+                height: 500px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="gantt-target"></div>
+        <script>
+            let tasks = {tasks_json};
 
-st.title("📅 Production Plan Scheduler")
+            let gantt = new Gantt(".gantt-target", tasks, {{
+                on_date_change: (task, start, end) => {{
+                    console.log("Updated Task:", task.id, start, end);
+                    fetch("/update_task", {{
+                        method: "POST",
+                        headers: {{
+                            "Content-Type": "application/json"
+                        }},
+                        body: JSON.stringify({{"id": task.id, "start": start, "end": end}})
+                    }});
+                }},
+                custom_popup_html: (task) => {{
+                    return `<b>{'{'}task.name{'}'}</b><br>Start: {'{'}task.start{'}'}<br>End: {'{'}task.end{'}'}`;
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    components.html(html_code, height=550)
 
-# Load available branches
-if "branches" not in st.session_state:
-    st.session_state["branches"] = get_branches()
+# **🔹 Simulated Production Plan Data**
+df = pd.DataFrame([
+    {"id": "1", "name": "Batch A - Machine 1", "start": datetime(2025, 3, 18), "time_needed": 5},
+    {"id": "2", "name": "Batch B - Machine 2", "start": datetime(2025, 3, 20), "time_needed": 3},
+    {"id": "3", "name": "Batch C - Machine 3", "start": datetime(2025, 3, 23), "time_needed": 4},
+])
 
-# Ensure session state has a valid branch
-if "branch" not in st.session_state or st.session_state["branch"] not in st.session_state["branches"]:
-    st.session_state["branch"] = st.session_state["branches"][0]
+# **🔹 Calculate End Times Based on Duration (Time in Hours)**
+df["end"] = df["start"] + df["time_needed"].apply(lambda x: timedelta(hours=x))
 
-# Branch selection dropdown
-selected_branch = st.selectbox(
-    "🔀 Select Database Branch:",
-    st.session_state["branches"],
-    index=st.session_state["branches"].index(st.session_state["branch"])
-)
+# **🔹 Convert DataFrame to JSON for Frappe Gantt**
+tasks = df[["id", "name", "start", "end"]].copy()
+tasks["start"] = tasks["start"].dt.strftime("%Y-%m-%d %H:%M")
+tasks["end"] = tasks["end"].dt.strftime("%Y-%m-%d %H:%M")
+tasks_json = json.dumps(tasks.to_dict(orient="records"))
 
-# Handle branch switch
-if selected_branch != st.session_state["branch"]:
-    st.session_state["branch"] = selected_branch
-    st.session_state["scheduled_batches"] = []
-    st.session_state["storage_frames"] = {}
-    st.rerun()
+# **🔹 Streamlit UI**
+st.title("📅 Plan Schedule - Interactive Gantt Chart")
 
-st.sidebar.success(f"✅ Working on branch: **{st.session_state['branch']}**")
+# **📊 Show Data Table**
+st.write("### 📜 Production Plan Data (Before Editing)")
+st.dataframe(df)
 
-# Database connection
-conn = get_db_connection()
-if not conn:
-    st.error("❌ Database connection failed.")
-    st.stop()
-
-cur = conn.cursor()
-
-# Shift types and available hours
-shift_types = {
-    "LD": 11,
-    "NS": 22,
-    "ELD": 15,
-    "ND": 9,
-    "OFF": 0
-}
-
-# Initialize session state variables
-if "scheduled_batches" not in st.session_state:
-    st.session_state["scheduled_batches"] = []
-if "storage_frames" not in st.session_state:
-    st.session_state["storage_frames"] = {}
-
-# Fetch unscheduled batches
-cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
-unscheduled_batches = cur.fetchall()
-
-# ✅ Store batch data in session state
-for product, batch_number, machine, time_needed in unscheduled_batches:
-    if machine not in st.session_state["storage_frames"]:
-        st.session_state["storage_frames"][machine] = []
-
-    existing_batches = [b["batch_number"] for b in st.session_state["storage_frames"][machine]]
-    if batch_number not in existing_batches:
-        st.session_state["storage_frames"][machine].append({
-            "product": product,
-            "batch_number": batch_number,
-            "time_needed": time_needed
-        })
-
-st.write("### 🏭 Available Batches for Scheduling")
-
-if "clicked_batches" not in st.session_state:
-    st.session_state["clicked_batches"] = set()
-
-for machine, batches in st.session_state["storage_frames"].items():
-    st.subheader(f"⚙️ {machine}")
-
-    for batch in batches:
-        batch_key = f"{machine}_{batch['batch_number']}"
-
-        if batch_key in st.session_state["clicked_batches"]:
-            continue
-
-        if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=batch_key):
-            st.session_state["scheduled_batches"].append({
-                "machine": machine,
-                "product": batch["product"],
-                "batch_number": batch["batch_number"],
-                "time_needed": batch["time_needed"],
-                "start": None,
-                "end": None
-
-            })
-
-            st.session_state["storage_frames"][machine] = [
-                b for b in batches if b["batch_number"] != batch["batch_number"]
-            ]
-            st.session_state["clicked_batches"].add(batch_key)
-
-            st.rerun()
-
-# **User selects scheduling period**
-start_date = st.date_input("📅 Select Start Date")
-end_date = st.date_input("📅 Select End Date")
-date_range = pd.date_range(start=start_date, end=end_date)
-
-# **Shift Selection Table**
-st.write("### 🕒 Shift Availability")
-shift_selection = {}
-for machine in st.session_state["storage_frames"].keys():
-    shift_selection[machine] = {}
-    cols = st.columns(len(date_range))
-    for idx, date in enumerate(date_range):
-        shift = cols[idx].selectbox(
-            f"{machine} - {date.date()}",
-            list(shift_types.keys()),
-            key=f"shift_{machine}_{date}"
-        )
-        shift_selection[machine][str(date.date())] = shift_types[shift]
-
-# **Assign batches to timeline**
-scheduled_data = []
-for batch in st.session_state["scheduled_batches"]:
-    for date in date_range:
-        available_time = shift_selection.get(batch["machine"], {}).get(str(date.date()), 0)
-        if available_time >= batch["time_needed"]:
-            batch["start"] = pd.Timestamp(date)  # Start at beginning of shift
-            batch["end"] = batch["start"] + pd.Timedelta(hours=float(batch["time_needed"]))  # FIX: Add time in hours
-            scheduled_data.append(batch)
-            break
-
-# **Display Scheduled Batches Table**
-if scheduled_data:
-    st.write("### 📋 Scheduled Batches (Table View)")
-    df = pd.DataFrame(scheduled_data)
-    df["start"] = pd.to_datetime(df["start"])
-    df["end"] = pd.to_datetime(df["end"])
-    st.dataframe(df)  # ✅ Table for Debugging
-
-    # **Altair Gantt Chart**
-    st.write("### 📊 Scheduled Production Plan (Gantt Chart)")
-    chart = alt.Chart(df).mark_bar().encode(
-        x="start:T",
-        x2="end:T",
-        y="machine:N",
-        color="product:N",
-        tooltip=["product", "batch_number", "start", "end", "time_needed"]
-    ).properties(
-        width=800,
-        height=400,
-        title="📆 Production Schedule"
-    )
-
-    st.altair_chart(chart, use_container_width=True)
-else:
-    st.warning("⚠️ No scheduled batches to display.")
-
-# **Save Schedule to Database**
-if st.button("✅ Save Schedule"):
-    try:
-        for batch in st.session_state["scheduled_batches"]:
-            cur.execute("UPDATE production_plan SET schedule = TRUE WHERE batch_number = %s", (batch["batch_number"],))
-        conn.commit()
-        st.success("✅ Schedule saved successfully!")
-
-        # ✅ Reset scheduled batches after saving
-        st.session_state["scheduled_batches"] = []
-        st.rerun()
-
-    except Exception as e:
-        st.error(f"❌ Error saving schedule: {e}")
-    finally:
-        cur.close()
-        conn.close()
+# **🖱️ Display Drag-and-Drop Gantt Chart**
+st.write("### 🏗️ Production Schedule")
+gantt_chart(tasks_json)
