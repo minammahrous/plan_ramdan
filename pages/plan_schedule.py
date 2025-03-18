@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import altair as alt
+import uuid
 from auth import check_authentication
 from db import get_branches, get_db_connection
 
@@ -56,14 +57,14 @@ if "scheduled_batches" not in st.session_state:
 if "storage_frames" not in st.session_state:
     st.session_state["storage_frames"] = {}
 
-# Fetch unscheduled batches (where schedule = FALSE)
+# Fetch unscheduled batches (where schedule = False)
 cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
 unscheduled_batches = cur.fetchall()
 
 # ✅ Process all batches and group by machine
 for product, batch_number, machine, time_needed in unscheduled_batches:
     if machine not in st.session_state["storage_frames"]:
-        st.session_state["storage_frames"][machine] = []
+        st.session_state["storage_frames"][machine] = []  # Initialize machine list
 
     # ✅ Prevent duplicate entries
     existing_batches = [b["batch_number"] for b in st.session_state["storage_frames"][machine]]
@@ -77,16 +78,16 @@ for product, batch_number, machine, time_needed in unscheduled_batches:
 st.write("### 🏭 Available Batches for Scheduling")
 
 if "clicked_batches" not in st.session_state:
-    st.session_state["clicked_batches"] = set()
+    st.session_state["clicked_batches"] = set()  # Store added batch numbers
 
 for machine, batches in st.session_state["storage_frames"].items():
     st.subheader(f"⚙️ {machine}")
 
     for batch in batches:
-        batch_key = f"{machine}_{batch['batch_number']}"
+        batch_key = f"{machine}_{batch['batch_number']}"  # Unique batch key
 
         if batch_key in st.session_state["clicked_batches"]:
-            continue
+            continue  # Skip already added batches
 
         if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=batch_key):
             st.session_state["scheduled_batches"].append({
@@ -98,12 +99,13 @@ for machine, batches in st.session_state["storage_frames"].items():
                 "end": None
             })
 
+            # ✅ Remove batch from available list and update state
             st.session_state["storage_frames"][machine] = [
                 b for b in batches if b["batch_number"] != batch["batch_number"]
             ]
             st.session_state["clicked_batches"].add(batch_key)
 
-            st.rerun()
+            st.rerun()  # Force rerun to update UI
 
 # **User selects scheduling period**
 start_date = st.date_input("📅 Select Start Date")
@@ -124,49 +126,44 @@ for machine in st.session_state["storage_frames"].keys():
         )
         shift_selection[machine][str(date.date())] = shift_types[shift]
 
-# **Assign batches to timeline (Considering Multi-Day Scheduling)**
+# **Assign batches to timeline**
 scheduled_data = []
 for batch in st.session_state["scheduled_batches"]:
-    remaining_time = batch["time_needed"]
-    current_date = start_date
+    for date in date_range:
+        available_time = shift_selection.get(batch["machine"], {}).get(str(date.date()), 0)
+        if available_time >= batch["time_needed"]:
+            batch["start"] = date
+            batch["end"] = date
+            scheduled_data.append(batch)
+            break
 
-    while remaining_time > 0 and current_date <= end_date:
-        available_time = shift_selection.get(batch["machine"], {}).get(str(current_date), 0)
-
-        if available_time > 0:
-            if remaining_time <= available_time:
-                batch["start"] = current_date
-                batch["end"] = current_date
-                remaining_time = 0
-            else:
-                batch["start"] = current_date
-                batch["end"] = current_date
-                remaining_time -= available_time
-
-            scheduled_data.append({
-                "machine": batch["machine"],
-                "product": batch["product"],
-                "batch_number": batch["batch_number"],
-                "start": batch["start"],
-                "end": batch["end"]
-            })
-
-        current_date += pd.Timedelta(days=1)  # Move to next day
-
-# ✅ Remove None values from scheduled_data before plotting
-scheduled_data = [b for b in scheduled_data if b["start"] is not None and b["end"] is not None]
-
-# **Display Scheduled Batches**
+# **Display Scheduled Batches Table**
 if scheduled_data:
-    st.write("### 📊 Scheduled Production Plan")
+    st.write("### 📋 Scheduled Batches (Table View)")
     df = pd.DataFrame(scheduled_data)
+    st.dataframe(df)  # Display the DataFrame for debugging
 
-    if not df.empty:
-        fig = px.timeline(df, x_start="start", x_end="end", y="machine", color="product", text="batch_number")
-        fig.update_layout(title="📆 Production Schedule", xaxis_title="Date", yaxis_title="Machine")
-        st.plotly_chart(fig)
-    else:
-        st.warning("⚠️ No scheduled batches to display.")
+    # Convert date columns to datetime format for Altair
+    df["start"] = pd.to_datetime(df["start"])
+    df["end"] = pd.to_datetime(df["end"])
+
+    # **Altair Gantt Chart**
+    st.write("### 📊 Scheduled Production Plan (Gantt Chart)")
+    chart = alt.Chart(df).mark_bar().encode(
+        x="start:T",
+        x2="end:T",
+        y="machine:N",
+        color="product:N",
+        tooltip=["product", "batch_number", "start", "end"]
+    ).properties(
+        width=800,
+        height=400,
+        title="📆 Production Schedule"
+    )
+
+    st.altair_chart(chart, use_container_width=True)
+else:
+    st.warning("⚠️ No scheduled batches to display.")
 
 # **Save Schedule to Database**
 if st.button("✅ Save Schedule"):
@@ -176,6 +173,7 @@ if st.button("✅ Save Schedule"):
         conn.commit()
         st.success("✅ Schedule saved successfully!")
 
+        # ✅ Reset scheduled batches after saving
         st.session_state["scheduled_batches"] = []
         st.rerun()
 
