@@ -57,19 +57,26 @@ if "scheduled_batches" not in st.session_state:
 if "storage_frames" not in st.session_state:
     st.session_state["storage_frames"] = {}
 
+# ✅ Reset storage_frames to avoid duplicates
+st.session_state["storage_frames"] = {}
+
 # Fetch unscheduled batches (where schedule = False)
 cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
 unscheduled_batches = cur.fetchall()
 
-# Organize batches by machine
+# ✅ Ensure each machine only has unique batches
 for product, batch_number, machine, time_needed in unscheduled_batches:
     if machine not in st.session_state["storage_frames"]:
         st.session_state["storage_frames"][machine] = []
-    st.session_state["storage_frames"][machine].append({
-        "product": product,
-        "batch_number": batch_number,
-        "time_needed": time_needed
-    })
+
+    # ✅ Prevent duplicate entries
+    if not any(b["batch_number"] == batch_number for b in st.session_state["storage_frames"][machine]):
+        st.session_state["storage_frames"][machine].append({
+            "product": product,
+            "batch_number": batch_number,
+            "time_needed": time_needed
+        })
+
 
 # User selects scheduling period
 start_date = st.date_input("📅 Select Start Date")
