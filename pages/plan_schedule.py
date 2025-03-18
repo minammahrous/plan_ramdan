@@ -60,38 +60,50 @@ def scheduler_page():
     
     # Interactive Drag-and-Drop Scheduler with interact.js
     st.subheader("Interactive Scheduler")
-    scheduler_html = """
+    
+    batch_html = "".join([f'<div class="draggable" id="batch_{row.batch_number}" data-batch="{row.batch_number}">{row.product} - {row.batch_number}</div>' for _, row in df_batches.iterrows()])
+    machine_html = "".join([f'<div class="dropzone" id="zone_{machine.replace(" ", "_")}">{machine}</div>' for machine in machines])
+    
+    scheduler_html = f"""
     <html>
     <head>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/interact.js/1.10.11/interact.min.js"></script>
         <style>
-            .draggable { width: 100px; height: 50px; background: #3498db; color: white; text-align: center; cursor: move; margin: 5px; }
-            .dropzone { width: 150px; height: 100px; border: 2px dashed #ccc; display: inline-block; margin: 5px; }
+            .draggable {{ width: 120px; height: 50px; background: #3498db; color: white; text-align: center; cursor: move; margin: 5px; }}
+            .dropzone {{ width: 150px; height: 100px; border: 2px dashed #ccc; display: inline-block; margin: 5px; }}
         </style>
     </head>
     <body>
-        <div class="draggable" id="batch1">Batch 1</div>
-        <div class="dropzone" id="zone1">Drop Here</div>
+        <h3>Unscheduled Batches</h3>
+        <div id="batches">{batch_html}</div>
+        <h3>Machines</h3>
+        <div id="machines">{machine_html}</div>
 
         <script>
-            interact('.draggable').draggable({
-                listeners: {
-                    move(event) {
-                        event.target.style.transform = `translate(${event.pageX}px, ${event.pageY}px)`;
-                    }
-                }
-            });
+            interact('.draggable').draggable({{
+                listeners: {{
+                    move(event) {{
+                        let x = (parseFloat(event.target.getAttribute('data-x')) || 0) + event.dx;
+                        let y = (parseFloat(event.target.getAttribute('data-y')) || 0) + event.dy;
+                        event.target.style.transform = `translate(${x}px, ${y}px)`;
+                        event.target.setAttribute('data-x', x);
+                        event.target.setAttribute('data-y', y);
+                    }}
+                }}
+            }});
             
-            interact('.dropzone').dropzone({
-                ondrop(event) {
+            interact('.dropzone').dropzone({{
+                ondrop(event) {{
                     event.target.style.backgroundColor = 'lightgreen';
-                }
-            });
+                    let batch = event.relatedTarget.getAttribute('data-batch');
+                    alert(`Scheduled batch: ${batch} on ${event.target.id}`);
+                }}
+            }});
         </script>
     </body>
     </html>
     """
-    components.html(scheduler_html, height=300)
+    components.html(scheduler_html, height=500)
     
     # Scheduler logic
     if st.button("Start Scheduling"):
