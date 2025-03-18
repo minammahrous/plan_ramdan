@@ -59,9 +59,9 @@ cur.execute(
 unscheduled_batches = cur.fetchall()
 
 # 📌 Convert to DataFrame
-df = pd.DataFrame(unscheduled_batches, columns=["product", "batch_number", "machine", "time_needed"])
+df = pd.DataFrame(unscheduled_batches, columns=["product", "batch_number", "machine", "time"])
 
-# Ensure start and end times are set
+# Ensure start and end s are set
 if "scheduled_batches" not in st.session_state:
     st.session_state["scheduled_batches"] = []
 
