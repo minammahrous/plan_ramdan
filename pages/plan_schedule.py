@@ -97,14 +97,14 @@ for machine, batches in st.session_state["storage_frames"].items():
     # Ensure batch is not already scheduled
             if not any(b["batch_number"] == batch["batch_number"] for b in st.session_state["scheduled_batches"]):
         # Add batch to scheduled list
-            st.session_state["scheduled_batches"].append({
-                "machine": machine,
-                "product": batch["product"],
-                "batch_number": batch["batch_number"],
-                "time_needed": batch["time_needed"],
-                "start": None,
-                "end": None
-            })
+                st.session_state["scheduled_batches"].append({
+                    "machine": machine,
+                    "product": batch["product"],
+                    "batch_number": batch["batch_number"],
+                    "time_needed": batch["time_needed"],
+                    "start": None,
+                    "end": None
+                })
 
         # ✅ Ensure batch is removed from available storage
         st.session_state["storage_frames"][machine] = [
