@@ -79,16 +79,21 @@ for product, batch_number, machine, time_needed in unscheduled_batches:
             "time_needed": time_needed
         })
 
-# ✅ Confirm data is loading correctly
 st.write("### 🏭 Available Batches for Scheduling")
+
+if "clicked_batches" not in st.session_state:
+    st.session_state["clicked_batches"] = set()  # Store added batch numbers
+
 for machine, batches in st.session_state["storage_frames"].items():
     st.subheader(f"⚙️ {machine}")
-    for batch in batches:
-        batch_number_str = str(batch["batch_number"]).replace(" ", "_")
-        unique_key = f"add_{machine}_{batch_number_str}_{uuid.uuid4().hex}"  # Ensure unique key
 
-        if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=unique_key):
-            # ✅ Add batch to scheduled list
+    for batch in batches:
+        batch_key = f"{machine}_{batch['batch_number']}"  # Unique batch key
+
+        if batch_key in st.session_state["clicked_batches"]:
+            continue  # Skip already added batches
+
+        if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=batch_key):
             st.session_state["scheduled_batches"].append({
                 "machine": machine,
                 "product": batch["product"],
@@ -98,12 +103,13 @@ for machine, batches in st.session_state["storage_frames"].items():
                 "end": None
             })
 
-            # ✅ Remove batch from available storage
+            # ✅ Remove batch from available list and update state
             st.session_state["storage_frames"][machine] = [
-                b for b in st.session_state["storage_frames"][machine] if b["batch_number"] != batch["batch_number"]
+                b for b in batches if b["batch_number"] != batch["batch_number"]
             ]
+            st.session_state["clicked_batches"].add(batch_key)
 
-            st.rerun()
+            st.rerun()  # Force rerun to update UI
 
 # **User selects scheduling period**
 start_date = st.date_input("📅 Select Start Date")
