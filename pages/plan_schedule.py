@@ -3,29 +3,28 @@ import pandas as pd
 import uuid
 from auth import check_authentication
 from db import get_branches, get_db_connection
+from pages.gantt_component.gantt_component import gantt_chart  # Import Gantt component
 
-import sys
-import os
-
-# Add 'pages' directory to sys.path so Python can find gantt_component.py
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))  
-
-from pages.gantt_component import gantt_chart  # Adjusted import
-
-# ✅ Ensure authentication
+# 🔒 Ensure user is authenticated
 check_authentication()
 
-st.title("📅 Interactive Production Plan Scheduler")
+st.title("📅 Production Plan Scheduler (Drag & Drop)")
 
-# ✅ Load available branches
+# 🔀 Load available branches
 if "branches" not in st.session_state:
     st.session_state["branches"] = get_branches()
 
-if "branch" not in st.session_state:
+# Ensure session state has a valid branch
+if "branch" not in st.session_state or st.session_state["branch"] not in st.session_state["branches"]:
     st.session_state["branch"] = st.session_state["branches"][0]
 
-# ✅ Branch selection dropdown
-selected_branch = st.selectbox("🔀 Select Database Branch:", st.session_state["branches"])
+# 🔀 Branch selection dropdown
+selected_branch = st.selectbox(
+    "🔀 Select Database Branch:",
+    st.session_state["branches"],
+    index=st.session_state["branches"].index(st.session_state["branch"])
+)
+
 if selected_branch != st.session_state["branch"]:
     st.session_state["branch"] = selected_branch
     st.session_state["scheduled_batches"] = []
@@ -33,7 +32,7 @@ if selected_branch != st.session_state["branch"]:
 
 st.sidebar.success(f"✅ Working on branch: **{st.session_state['branch']}**")
 
-# ✅ Connect to the database
+# 🔗 Database connection
 conn = get_db_connection()
 if not conn:
     st.error("❌ Database connection failed.")
@@ -41,69 +40,55 @@ if not conn:
 
 cur = conn.cursor()
 
-# ✅ Fetch unscheduled batches (where schedule = False)
-cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
+# 📌 Fetch unscheduled batches
+cur.execute(
+    """
+    SELECT product, batch_number, machine, time_needed 
+    FROM production_plan 
+    WHERE schedule = FALSE
+    """
+)
 unscheduled_batches = cur.fetchall()
 
+# 📌 Convert to DataFrame
 df = pd.DataFrame(unscheduled_batches, columns=["product", "batch_number", "machine", "time_needed"])
 
+# Ensure start and end times are set
 if "scheduled_batches" not in st.session_state:
     st.session_state["scheduled_batches"] = []
 
-# ✅ Initialize schedule if empty
 if not st.session_state["scheduled_batches"]:
     for _, row in df.iterrows():
+        start = pd.Timestamp.now()
+        end = start + pd.Timedelta(hours=row["time_needed"])
         st.session_state["scheduled_batches"].append({
-            "id": str(uuid.uuid4()),  
+            "id": str(uuid.uuid4()),  # Unique ID
             "name": f"{row['product']} - {row['batch_number']}",
             "machine": row["machine"],
-            "start": pd.Timestamp.now(),
-            "end": pd.Timestamp.now() + pd.Timedelta(hours=row["time_needed"]),
+            "start": start.strftime("%Y-%m-%d"),
+            "end": end.strftime("%Y-%m-%d"),
             "progress": 50
         })
 
-# ✅ Convert to Gantt format
-gantt_data = [
-    {
-        "id": task["id"],
-        "name": task["name"],
-        "start": task["start"].isoformat(),
-        "end": task["end"].isoformat(),
-        "machine": task["machine"]
-    }
-    for task in st.session_state["scheduled_batches"]
-]
+# 📊 Display Gantt Chart using custom JS component
+updated_tasks = gantt_chart(st.session_state["scheduled_batches"])
 
-# ✅ Display Table for Debugging
-st.write("### 📝 Production Plan Data")
-st.dataframe(df)
-
-# ✅ Display Interactive Gantt Chart
-st.write("### 📊 Drag & Drop to Adjust Schedule")
-updated_tasks = gantt_chart(gantt_data)
-
-# ✅ Update session state if Gantt changes
+# Update session state with modified schedule
 if updated_tasks:
-    for updated_task in updated_tasks:
-        for task in st.session_state["scheduled_batches"]:
-            if task["id"] == updated_task["id"]:
-                task["start"] = pd.to_datetime(updated_task["start"])
-                task["end"] = pd.to_datetime(updated_task["end"])
-                task["machine"] = updated_task["machine"]
-
+    st.session_state["scheduled_batches"] = updated_tasks
     st.success("✅ Schedule updated! Click **Save** to store in the database.")
 
-# ✅ Save schedule to database
+# 💾 Save changes to database
 if st.button("💾 Save Schedule"):
     try:
         for task in st.session_state["scheduled_batches"]:
             cur.execute(
                 """
                 UPDATE production_plan
-                SET schedule = TRUE, start_date = %s, end_date = %s, machine = %s
+                SET schedule = TRUE, start_date = %s, end_date = %s
                 WHERE batch_number = %s
                 """,
-                (task["start"], task["end"], task["machine"], task["name"].split(" - ")[1])
+                (task["start"], task["end"], task["name"].split(" - ")[1])  # Extract batch number
             )
         conn.commit()
         st.success("✅ Schedule saved successfully!")
