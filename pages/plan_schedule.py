@@ -94,7 +94,9 @@ for machine, batches in st.session_state["storage_frames"].items():
         unique_key = f"add_{machine}_{batch_number_str}_{uuid.uuid4().hex}"  # Ensure unique key
 
         if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=unique_key):
-            # Add batch to scheduled list
+    # Ensure batch is not already scheduled
+            if not any(b["batch_number"] == batch["batch_number"] for b in st.session_state["scheduled_batches"]):
+        # Add batch to scheduled list
             st.session_state["scheduled_batches"].append({
                 "machine": machine,
                 "product": batch["product"],
@@ -104,9 +106,13 @@ for machine, batches in st.session_state["storage_frames"].items():
                 "end": None
             })
 
-            # Remove batch from available storage
-            st.session_state["storage_frames"][machine].remove(batch)
-            st.rerun()
+        # ✅ Ensure batch is removed from available storage
+        st.session_state["storage_frames"][machine] = [
+            b for b in st.session_state["storage_frames"][machine] if b["batch_number"] != batch["batch_number"]
+        ]
+        
+        # ✅ Ensure rerun updates the UI properly
+        st.experimental_rerun()
 
 # **Shift Selection Table**
 st.write("### 🕒 Shift Availability")
