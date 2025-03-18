@@ -97,7 +97,7 @@ if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=f"add_
     if "scheduled_batches" not in st.session_state:
         st.session_state["scheduled_batches"] = []
 
-    # Prevent duplicate additions
+    # ✅ Prevent duplicate batch addition
     if batch["batch_number"] not in [b["batch_number"] for b in st.session_state["scheduled_batches"]]:
         st.session_state["scheduled_batches"].append({
             "machine": machine,
@@ -108,16 +108,14 @@ if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=f"add_
             "end": None
         })
 
-        # ✅ Properly remove batch from available storage
+        # ✅ Remove ONLY the selected batch from storage
         if machine in st.session_state["storage_frames"]:
             st.session_state["storage_frames"][machine] = [
                 b for b in st.session_state["storage_frames"][machine] if b["batch_number"] != batch["batch_number"]
             ]
 
-        # ✅ Only rerun after changes
-        if machine in st.session_state["storage_frames"]:
-            st.rerun()
-
+        # ✅ Ensure rerun only happens when needed
+        st.rerun()
 # **Shift Selection Table**
 st.write("### 🕒 Shift Availability")
 shift_selection = {}
