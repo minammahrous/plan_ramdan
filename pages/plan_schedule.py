@@ -57,13 +57,9 @@ if "scheduled_batches" not in st.session_state:
 if "storage_frames" not in st.session_state:
     st.session_state["storage_frames"] = {}
 
-# Fetch unscheduled batches (where schedule = False)
+# Fetch unscheduled batches (where schedule = FALSE)
 cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
 unscheduled_batches = cur.fetchall()
-
-# ✅ Ensure session state is initialized correctly
-if "storage_frames" not in st.session_state:
-    st.session_state["storage_frames"] = {}
 
 # ✅ Process all batches and group by machine
 for product, batch_number, machine, time_needed in unscheduled_batches:
@@ -137,17 +133,25 @@ for batch in st.session_state["scheduled_batches"]:
         available_time = shift_selection.get(batch["machine"], {}).get(str(date.date()), 0)
         if available_time >= batch["time_needed"]:
             batch["start"] = date
-            batch["end"] = date
+            batch["end"] = date  # Adjust if needed for multi-day batches
             scheduled_data.append(batch)
             break
+
+# ✅ Remove None values from scheduled_data before plotting
+scheduled_data = [b for b in scheduled_data if b["start"] is not None and b["end"] is not None]
 
 # **Display Scheduled Batches**
 if scheduled_data:
     st.write("### 📊 Scheduled Production Plan")
     df = pd.DataFrame(scheduled_data)
-    fig = px.timeline(df, x_start="start", x_end="end", y="machine", color="product", text="batch_number")
-    fig.update_layout(title="📆 Production Schedule", xaxis_title="Date", yaxis_title="Machine")
-    st.plotly_chart(fig)
+
+    # ✅ Ensure DataFrame has data before plotting
+    if not df.empty:
+        fig = px.timeline(df, x_start="start", x_end="end", y="machine", color="product", text="batch_number")
+        fig.update_layout(title="📆 Production Schedule", xaxis_title="Date", yaxis_title="Machine")
+        st.plotly_chart(fig)
+    else:
+        st.warning("⚠️ No scheduled batches to display.")
 
 # **Save Schedule to Database**
 if st.button("✅ Save Schedule"):
