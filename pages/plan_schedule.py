@@ -51,7 +51,7 @@ cur = conn.cursor()
 # 📌 Fetch unscheduled batches
 cur.execute(
     """
-    SELECT product, batch_number, machine, time_needed 
+    SELECT product, batch_number, machine, time 
     FROM production_plan 
     WHERE schedule = FALSE
     """
