@@ -93,26 +93,30 @@ for machine, batches in st.session_state["storage_frames"].items():
         batch_number_str = str(batch["batch_number"]).replace(" ", "_")
         unique_key = f"add_{machine}_{batch_number_str}_{uuid.uuid4().hex}"  # Ensure unique key
 
-        if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=unique_key):
-    # Ensure batch is not already scheduled
-            if not any(b["batch_number"] == batch["batch_number"] for b in st.session_state["scheduled_batches"]):
-        # Add batch to scheduled list
-                st.session_state["scheduled_batches"].append({
-                    "machine": machine,
-                    "product": batch["product"],
-                    "batch_number": batch["batch_number"],
-                    "time_needed": batch["time_needed"],
-                    "start": None,
-                    "end": None
-                })
+    if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=f"add_{machine}_{batch['batch_number']}"):
+    if "scheduled_batches" not in st.session_state:
+        st.session_state["scheduled_batches"] = []
 
-        # ✅ Ensure batch is removed from available storage
-        st.session_state["storage_frames"][machine] = [
-            b for b in st.session_state["storage_frames"][machine] if b["batch_number"] != batch["batch_number"]
-        ]
-        
-        # ✅ Ensure rerun updates the UI properly
-        st.rerun()
+    # Prevent duplicate additions
+    if batch["batch_number"] not in [b["batch_number"] for b in st.session_state["scheduled_batches"]]:
+        st.session_state["scheduled_batches"].append({
+            "machine": machine,
+            "product": batch["product"],
+            "batch_number": batch["batch_number"],
+            "time_needed": batch["time_needed"],
+            "start": None,
+            "end": None
+        })
+
+        # ✅ Properly remove batch from available storage
+        if machine in st.session_state["storage_frames"]:
+            st.session_state["storage_frames"][machine] = [
+                b for b in st.session_state["storage_frames"][machine] if b["batch_number"] != batch["batch_number"]
+            ]
+
+        # ✅ Only rerun after changes
+        if machine in st.session_state["storage_frames"]:
+            st.rerun()
 
 # **Shift Selection Table**
 st.write("### 🕒 Shift Availability")
