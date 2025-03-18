@@ -95,7 +95,7 @@ for machine, batches in st.session_state["storage_frames"].items():
                 "batch_number": batch["batch_number"],
                 "time_needed": batch["time_needed"],
                 "start": None,
-                "end": batch["end"] = batch["start"] + pd.Timedelta(hours=float(batch["time_needed"]))
+                "end": None
 
             })
 
@@ -132,7 +132,7 @@ for batch in st.session_state["scheduled_batches"]:
         available_time = shift_selection.get(batch["machine"], {}).get(str(date.date()), 0)
         if available_time >= batch["time_needed"]:
             batch["start"] = pd.Timestamp(date)  # Start at beginning of shift
-            batch["end"] = batch["start"] + pd.Timedelta(hours=batch["time_needed"])  # FIX: Add time in hours
+            batch["end"] = batch["start"] + pd.Timedelta(hours=float(batch["time_needed"]))  # FIX: Add time in hours
             scheduled_data.append(batch)
             break
 
