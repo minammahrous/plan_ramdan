@@ -57,35 +57,29 @@ if "scheduled_batches" not in st.session_state:
 if "storage_frames" not in st.session_state:
     st.session_state["storage_frames"] = {}
 
-# ✅ Reset storage_frames to avoid duplicates
-st.session_state["storage_frames"] = {}
-
 # Fetch unscheduled batches (where schedule = False)
 cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
 unscheduled_batches = cur.fetchall()
 
-# ✅ Ensure each machine only has unique batches
+# ✅ Ensure session state is initialized correctly
+if "storage_frames" not in st.session_state:
+    st.session_state["storage_frames"] = {}
+
+# ✅ Process all batches and group by machine
 for product, batch_number, machine, time_needed in unscheduled_batches:
     if machine not in st.session_state["storage_frames"]:
-        st.session_state["storage_frames"][machine] = []
+        st.session_state["storage_frames"][machine] = []  # Initialize machine list
 
     # ✅ Prevent duplicate entries
-    if not any(b["batch_number"] == batch_number for b in st.session_state["storage_frames"][machine]):
+    existing_batches = [b["batch_number"] for b in st.session_state["storage_frames"][machine]]
+    if batch_number not in existing_batches:
         st.session_state["storage_frames"][machine].append({
             "product": product,
             "batch_number": batch_number,
             "time_needed": time_needed
         })
 
-
-# User selects scheduling period
-start_date = st.date_input("📅 Select Start Date")
-end_date = st.date_input("📅 Select End Date")
-
-# Generate date range for scheduling
-date_range = pd.date_range(start=start_date, end=end_date)
-
-# **Display available batches & allow scheduling**
+# ✅ Confirm data is loading correctly
 st.write("### 🏭 Available Batches for Scheduling")
 for machine, batches in st.session_state["storage_frames"].items():
     st.subheader(f"⚙️ {machine}")
@@ -93,29 +87,29 @@ for machine, batches in st.session_state["storage_frames"].items():
         batch_number_str = str(batch["batch_number"]).replace(" ", "_")
         unique_key = f"add_{machine}_{batch_number_str}_{uuid.uuid4().hex}"  # Ensure unique key
 
-if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=f"add_{machine}_{batch['batch_number']}"):
-    if "scheduled_batches" not in st.session_state:
-        st.session_state["scheduled_batches"] = []
+        if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=unique_key):
+            # ✅ Add batch to scheduled list
+            st.session_state["scheduled_batches"].append({
+                "machine": machine,
+                "product": batch["product"],
+                "batch_number": batch["batch_number"],
+                "time_needed": batch["time_needed"],
+                "start": None,
+                "end": None
+            })
 
-    # ✅ Prevent duplicate batch addition
-    if batch["batch_number"] not in [b["batch_number"] for b in st.session_state["scheduled_batches"]]:
-        st.session_state["scheduled_batches"].append({
-            "machine": machine,
-            "product": batch["product"],
-            "batch_number": batch["batch_number"],
-            "time_needed": batch["time_needed"],
-            "start": None,
-            "end": None
-        })
-
-        # ✅ Remove ONLY the selected batch from storage
-        if machine in st.session_state["storage_frames"]:
+            # ✅ Remove batch from available storage
             st.session_state["storage_frames"][machine] = [
                 b for b in st.session_state["storage_frames"][machine] if b["batch_number"] != batch["batch_number"]
             ]
 
-        # ✅ Ensure rerun only happens when needed
-        st.rerun()
+            st.rerun()
+
+# **User selects scheduling period**
+start_date = st.date_input("📅 Select Start Date")
+end_date = st.date_input("📅 Select End Date")
+date_range = pd.date_range(start=start_date, end=end_date)
+
 # **Shift Selection Table**
 st.write("### 🕒 Shift Availability")
 shift_selection = {}
@@ -131,51 +125,23 @@ for machine in st.session_state["storage_frames"].keys():
         shift_selection[machine][str(date.date())] = shift_types[shift]
 
 # **Assign batches to timeline**
-data = []
-scheduled_batches_set = set()  # Track already scheduled batches
-
+scheduled_data = []
 for batch in st.session_state["scheduled_batches"]:
-    batch_scheduled = False  # Track if the batch is already placed
     for date in date_range:
-        available_time = shift_selection[batch["machine"]][str(date.date())]
-        if available_time >= batch["time_needed"] and batch["batch_number"] not in scheduled_batches_set:
+        available_time = shift_selection.get(batch["machine"], {}).get(str(date.date()), 0)
+        if available_time >= batch["time_needed"]:
             batch["start"] = date
             batch["end"] = date
-            data.append(batch)
-            scheduled_batches_set.add(batch["batch_number"])  # Mark batch as scheduled
-            batch_scheduled = True
-            break  # Stop trying to schedule this batch further
-
-    if not batch_scheduled:
-        st.warning(f"⚠️ Batch {batch['batch_number']} ({batch['product']}) couldn't be scheduled!")
-
-# **Display Debug Information**
-st.write("### 🔍 Debugging Info")
-st.write("#### Scheduled Data for Plotly")
-st.dataframe(pd.DataFrame(data))  # Display raw data used for the Gantt chart
+            scheduled_data.append(batch)
+            break
 
 # **Display Scheduled Batches**
-if data:
+if scheduled_data:
     st.write("### 📊 Scheduled Production Plan")
-    
-    # Convert to DataFrame
-    df = pd.DataFrame(data)
-
-    # Ensure 'start' and 'end' are in datetime format
-    df["start"] = pd.to_datetime(df["start"])
-    df["end"] = pd.to_datetime(df["end"])
-
-    # Debugging messages
-    st.write("#### DataFrame being passed to px.timeline:")
-    st.dataframe(df)
-
-    # Plot the timeline
+    df = pd.DataFrame(scheduled_data)
     fig = px.timeline(df, x_start="start", x_end="end", y="machine", color="product", text="batch_number")
     fig.update_layout(title="📆 Production Schedule", xaxis_title="Date", yaxis_title="Machine")
     st.plotly_chart(fig)
-
-else:
-    st.warning("⚠️ No batches were scheduled. Try adjusting shifts or adding more batches.")
 
 # **Save Schedule to Database**
 if st.button("✅ Save Schedule"):
@@ -184,8 +150,11 @@ if st.button("✅ Save Schedule"):
             cur.execute("UPDATE production_plan SET schedule = TRUE WHERE batch_number = %s", (batch["batch_number"],))
         conn.commit()
         st.success("✅ Schedule saved successfully!")
+
+        # ✅ Reset scheduled batches after saving
         st.session_state["scheduled_batches"] = []
         st.rerun()
+
     except Exception as e:
         st.error(f"❌ Error saving schedule: {e}")
     finally:
