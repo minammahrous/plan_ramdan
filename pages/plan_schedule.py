@@ -68,7 +68,7 @@ if "scheduled_batches" not in st.session_state:
 if not st.session_state["scheduled_batches"]:
     for _, row in df.iterrows():
         start = pd.Timestamp.now()
-        end = start + pd.Timedelta(hours=row["time"])
+        end = start + pd.Timedelta(hours=float(row["time"]))
         st.session_state["scheduled_batches"].append({
             "id": str(uuid.uuid4()),  # Unique ID
             "name": f"{row['product']} - {row['batch_number']}",
