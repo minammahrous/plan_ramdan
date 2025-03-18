@@ -13,10 +13,17 @@ def load_machines():
     df = pd.read_sql(query, engine)
     return df["name"].tolist()
 
-def load_batches():
+def load_batches(start_date, end_date):
     engine = get_sqlalchemy_engine()
-    query = "SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
-    df = pd.read_sql(query, engine)
+    query = """
+        SELECT product, batch_number, machine, time, schedule 
+        FROM production_plan
+        WHERE 
+            (schedule = FALSE)  -- Always load unscheduled batches
+            OR 
+            (schedule = TRUE AND planned_start_datetime BETWEEN %s AND %s)  -- Filter scheduled batches by date
+    """
+    df = pd.read_sql(query, engine, params=[start_date, end_date])
     return df
 
 def scheduler_page():
@@ -32,7 +39,7 @@ def scheduler_page():
     
     # Button to load batches
     if st.button("Load Batches"):
-        st.session_state.batches = load_batches()
+        st.session_state.batches = load_batches(start_date, end_date)
     
     # Fetch unscheduled batches from session state
     if "batches" not in st.session_state:
