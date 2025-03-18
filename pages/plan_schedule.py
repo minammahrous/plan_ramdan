@@ -9,7 +9,7 @@ def load_machines():
     engine = get_sqlalchemy_engine()
     query = "SELECT name FROM machines"
     df = pd.read_sql(query, engine)
-    return df["machine"].tolist()
+    return df["name"].tolist()
 
 def scheduler_page():
     st.title("Production Scheduler")
