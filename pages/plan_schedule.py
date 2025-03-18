@@ -93,7 +93,7 @@ for machine, batches in st.session_state["storage_frames"].items():
         batch_number_str = str(batch["batch_number"]).replace(" ", "_")
         unique_key = f"add_{machine}_{batch_number_str}_{uuid.uuid4().hex}"  # Ensure unique key
 
-    if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=f"add_{machine}_{batch['batch_number']}"):
+if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=f"add_{machine}_{batch['batch_number']}"):
     if "scheduled_batches" not in st.session_state:
         st.session_state["scheduled_batches"] = []
 
