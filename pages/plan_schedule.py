@@ -57,16 +57,15 @@ if "scheduled_batches" not in st.session_state:
 if "storage_frames" not in st.session_state:
     st.session_state["storage_frames"] = {}
 
-# Fetch unscheduled batches (where schedule = False)
+# Fetch unscheduled batches
 cur.execute("SELECT product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE")
 unscheduled_batches = cur.fetchall()
 
-# ✅ Process all batches and group by machine
+# ✅ Store batch data in session state
 for product, batch_number, machine, time_needed in unscheduled_batches:
     if machine not in st.session_state["storage_frames"]:
-        st.session_state["storage_frames"][machine] = []  # Initialize machine list
+        st.session_state["storage_frames"][machine] = []
 
-    # ✅ Prevent duplicate entries
     existing_batches = [b["batch_number"] for b in st.session_state["storage_frames"][machine]]
     if batch_number not in existing_batches:
         st.session_state["storage_frames"][machine].append({
@@ -78,16 +77,16 @@ for product, batch_number, machine, time_needed in unscheduled_batches:
 st.write("### 🏭 Available Batches for Scheduling")
 
 if "clicked_batches" not in st.session_state:
-    st.session_state["clicked_batches"] = set()  # Store added batch numbers
+    st.session_state["clicked_batches"] = set()
 
 for machine, batches in st.session_state["storage_frames"].items():
     st.subheader(f"⚙️ {machine}")
 
     for batch in batches:
-        batch_key = f"{machine}_{batch['batch_number']}"  # Unique batch key
+        batch_key = f"{machine}_{batch['batch_number']}"
 
         if batch_key in st.session_state["clicked_batches"]:
-            continue  # Skip already added batches
+            continue
 
         if st.button(f"➕ Add {batch['batch_number']} ({batch['product']})", key=batch_key):
             st.session_state["scheduled_batches"].append({
@@ -99,13 +98,12 @@ for machine, batches in st.session_state["storage_frames"].items():
                 "end": None
             })
 
-            # ✅ Remove batch from available list and update state
             st.session_state["storage_frames"][machine] = [
                 b for b in batches if b["batch_number"] != batch["batch_number"]
             ]
             st.session_state["clicked_batches"].add(batch_key)
 
-            st.rerun()  # Force rerun to update UI
+            st.rerun()
 
 # **User selects scheduling period**
 start_date = st.date_input("📅 Select Start Date")
@@ -132,8 +130,8 @@ for batch in st.session_state["scheduled_batches"]:
     for date in date_range:
         available_time = shift_selection.get(batch["machine"], {}).get(str(date.date()), 0)
         if available_time >= batch["time_needed"]:
-            batch["start"] = date
-            batch["end"] = date
+            batch["start"] = pd.Timestamp(date)  # Start at beginning of shift
+            batch["end"] = batch["start"] + pd.Timedelta(hours=batch["time_needed"])  # FIX: Add time in hours
             scheduled_data.append(batch)
             break
 
@@ -141,11 +139,9 @@ for batch in st.session_state["scheduled_batches"]:
 if scheduled_data:
     st.write("### 📋 Scheduled Batches (Table View)")
     df = pd.DataFrame(scheduled_data)
-    st.dataframe(df)  # Display the DataFrame for debugging
-
-    # Convert date columns to datetime format for Altair
     df["start"] = pd.to_datetime(df["start"])
     df["end"] = pd.to_datetime(df["end"])
+    st.dataframe(df)  # ✅ Table for Debugging
 
     # **Altair Gantt Chart**
     st.write("### 📊 Scheduled Production Plan (Gantt Chart)")
@@ -154,7 +150,7 @@ if scheduled_data:
         x2="end:T",
         y="machine:N",
         color="product:N",
-        tooltip=["product", "batch_number", "start", "end"]
+        tooltip=["product", "batch_number", "start", "end", "time_needed"]
     ).properties(
         width=800,
         height=400,
