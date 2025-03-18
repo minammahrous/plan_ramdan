@@ -85,9 +85,11 @@ def scheduler_page():
                     move(event) {{
                         let x = (parseFloat(event.target.getAttribute('data-x')) || 0) + event.dx;
                         let y = (parseFloat(event.target.getAttribute('data-y')) || 0) + event.dy;
-                        event.target.style.transform = `translate(${x}px, ${y}px)`;
-                        event.target.setAttribute('data-x', x);
-                        event.target.setAttribute('data-y', y);
+                        if (!isNaN(x) && !isNaN(y)) {{
+                            event.target.style.transform = `translate(${x}px, ${y}px)`;
+                            event.target.setAttribute('data-x', x);
+                            event.target.setAttribute('data-y', y);
+                        }}
                     }}
                 }}
             }});
