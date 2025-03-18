@@ -112,7 +112,7 @@ for machine, batches in st.session_state["storage_frames"].items():
         ]
         
         # ✅ Ensure rerun updates the UI properly
-        st.experimental_rerun()
+        st.rerun()
 
 # **Shift Selection Table**
 st.write("### 🕒 Shift Availability")
