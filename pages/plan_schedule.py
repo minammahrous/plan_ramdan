@@ -95,7 +95,8 @@ for machine, batches in st.session_state["storage_frames"].items():
                 "batch_number": batch["batch_number"],
                 "time_needed": batch["time_needed"],
                 "start": None,
-                "end": None
+                "end": batch["end"] = batch["start"] + pd.Timedelta(hours=float(batch["time_needed"]))
+
             })
 
             st.session_state["storage_frames"][machine] = [
