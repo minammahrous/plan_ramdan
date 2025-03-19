@@ -35,63 +35,74 @@ with col2:
 
 date_range = pd.date_range(start=start_date, end=end_date)
 
-# Select Machine
-machines = load_machines()
-selected_machine = st.selectbox("Select Machine", machines)
+scheduled_machines = []
 
-# Load Available Batches
-batches = load_unscheduled_batches()
-machine_batches = batches[batches["machine"] == selected_machine]
-remaining_batches = machine_batches.copy()
-
-if not machine_batches.empty:
-    st.write("### Schedule for", selected_machine)
-    schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization"], columns=date_range.strftime("%Y-%m-%d"))
+def schedule_machine():
+    global scheduled_machines
+    # Select Machine
+    machines = load_machines()
+    selected_machine = st.selectbox("Select Machine", machines, key=f"machine_{len(scheduled_machines)}")
     
-    for date in date_range:
-        with st.expander(f"{date.strftime('%Y-%m-%d')}"):
-            shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}")
-            available_batches = remaining_batches["display_name"].tolist()
-            batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", available_batches, key=f"batch_{date}")
-            
-            percent_selection = [st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, value=100, key=f"percent_{batch}_{date}") for batch in batch_selection]
-            
-            total_utilization = 0
-            utilization_list = []
-            for batch, percent in zip(batch_selection, percent_selection):
-                batch_time = machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0]
-                utilization_hours = (percent / 100) * batch_time
-                total_utilization += utilization_hours
-                utilization_list.append(f"{utilization_hours:.2f} hours")
-            
-            utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
-            
-            schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = shift
-            schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = ", ".join(batch_selection)
-            schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")] = ", ".join(map(str, percent_selection))
-            schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"{utilization_percentage:.2f}%"
-            
-            # Remove selected batches from future selections
-            remaining_batches = remaining_batches[~remaining_batches["display_name"].isin(batch_selection)]
+    # Load Available Batches
+    batches = load_unscheduled_batches()
+    machine_batches = batches[batches["machine"] == selected_machine]
+    remaining_batches = machine_batches.copy()
     
-    st.write("### Planned Schedule")
-    st.dataframe(schedule_df)
-    
-    if st.button("Save Schedule"):
-        conn = get_db_connection()
-        cur = conn.cursor()
+    if not machine_batches.empty:
+        st.write("### Schedule for", selected_machine)
+        schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization"], columns=date_range.strftime("%Y-%m-%d"))
+        
         for date in date_range:
-            cur.execute(
-                """
-                INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
-                VALUES (%s, %s, %s, %s, %s, %s)""",
-                (selected_machine, date, schedule_df.loc["Shift", date.strftime("%Y-%m-%d")],
-                 schedule_df.loc["Batch", date.strftime("%Y-%m-%d")],
-                 schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")],
-                 schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")]))
-        conn.commit()
-        cur.close()
-        conn.close()
-        st.success("Schedule saved successfully!")
-else:
-    st.warning("No unscheduled batches for this machine.")
+            with st.expander(f"{date.strftime('%Y-%m-%d')}"):
+                shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{selected_machine}")
+                available_batches = remaining_batches["display_name"].tolist()
+                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", available_batches, key=f"batch_{date}_{selected_machine}")
+                
+                percent_selection = [st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, value=100, key=f"percent_{batch}_{date}_{selected_machine}") for batch in batch_selection]
+                
+                total_utilization = 0
+                utilization_list = []
+                for batch, percent in zip(batch_selection, percent_selection):
+                    batch_time = machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0]
+                    utilization_hours = (percent / 100) * batch_time
+                    total_utilization += utilization_hours
+                    utilization_list.append(f"{utilization_hours:.2f} hours")
+                
+                utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
+                
+                schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = shift
+                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = ", ".join(batch_selection)
+                schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")] = ", ".join(map(str, percent_selection))
+                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"{utilization_percentage:.2f}%"
+                
+                # Remove selected batches from future selections
+                remaining_batches = remaining_batches[~remaining_batches["display_name"].isin(batch_selection)]
+        
+        st.write("### Planned Schedule")
+        st.dataframe(schedule_df)
+        
+        if st.button(f"Save Schedule for {selected_machine}"):
+            conn = get_db_connection()
+            cur = conn.cursor()
+            for date in date_range:
+                cur.execute(
+                    """
+                    INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
+                    VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (selected_machine, date, schedule_df.loc["Shift", date.strftime("%Y-%m-%d")],
+                     schedule_df.loc["Batch", date.strftime("%Y-%m-%d")],
+                     schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")],
+                     schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")]))
+            conn.commit()
+            cur.close()
+            conn.close()
+            st.success(f"Schedule saved successfully for {selected_machine}!")
+            scheduled_machines.append(selected_machine)
+    else:
+        st.warning(f"No unscheduled batches for {selected_machine}.")
+
+# Initial Scheduling
+schedule_machine()
+
+if st.button("Add Another Machine"):
+    schedule_machine()
