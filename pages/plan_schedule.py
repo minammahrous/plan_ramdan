@@ -17,6 +17,7 @@ def load_unscheduled_batches():
     query = "SELECT id, product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
     batches = pd.read_sql(query, conn)
     conn.close()
+    batches["display_name"] = batches["product"] + " - " + batches["batch_number"]
     return batches
 
 # UI
@@ -46,16 +47,18 @@ if not machine_batches.empty:
     for date in date_range:
         with st.expander(f"{date.strftime('%Y-%m-%d')}"):
             shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", ["LD", "NS", "ELD", "ND"], key=f"shift_{date}")
-            batch = st.selectbox(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["batch_number"].tolist(), key=f"batch_{date}")
-            percent = st.number_input(f"% of Batch ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, key=f"percent_{date}")
+            batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}")
+            percent_selection = [st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, key=f"percent_{batch}_{date}") for batch in batch_selection]
             
-            batch_time = machine_batches.loc[machine_batches["batch_number"] == batch, "time"].values[0]
-            utilization = f"{(percent / 100) * batch_time} hours"
+            utilization_list = []
+            for batch, percent in zip(batch_selection, percent_selection):
+                batch_time = machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0]
+                utilization_list.append(f"{(percent / 100) * batch_time} hours")
             
             schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = shift
-            schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = batch
-            schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")] = percent
-            schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = utilization
+            schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = ", ".join(batch_selection)
+            schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")] = ", ".join(map(str, percent_selection))
+            schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = ", ".join(utilization_list)
     
     st.write("### Planned Schedule")
     st.dataframe(schedule_df)
