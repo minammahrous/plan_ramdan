@@ -1,17 +1,7 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
 from datetime import datetime, timedelta
-
-# Database connection function (modify as needed)
-def get_db_connection():
-    return psycopg2.connect(
-        dbname=st.secrets["dbname"],
-        user=st.secrets["user"],
-        password=st.secrets["password"],
-        host=st.secrets["host"],
-        port=st.secrets["port"]
-    )
+from db import get_db_connection  # Importing database connection function
 
 # Load Machines
 def load_machines():
@@ -72,7 +62,8 @@ if not machine_batches.empty:
         conn = get_db_connection()
         cur = conn.cursor()
         for date in date_range:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage) 
                 VALUES (%s, %s, %s, %s, %s)""",
                 (selected_machine, date, schedule_df.loc["Shift", date.strftime("%Y-%m-%d")],
