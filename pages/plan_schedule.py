@@ -61,10 +61,10 @@ def schedule_machine(machine_id):
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
                 
+                formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in zip(batch_selection, percent_selection)])
                 schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
-                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = "<br>".join(batch_selection)
-                schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")] = "<br>".join(map(str, percent_selection))
-                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"{utilization_percentage:.2f}%"
+                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
+                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
         
         st.session_state.schedule_data[selected_machine] = schedule_df
         
@@ -83,7 +83,7 @@ if st.session_state.schedule_data:
     for machine, df in st.session_state.schedule_data.items():
         row = {"Machine": machine}
         for date in date_range.strftime("%Y-%m-%d"):
-            row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['% of Batch', date]}<br>{df.loc['Utilization', date]}"
+            row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['Utilization', date]}"
         consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
     
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
@@ -98,7 +98,7 @@ if st.session_state.schedule_data:
                     """
                     INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
                     VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (machine, date, df.loc["Shift", date], df.loc["Batch", date], df.loc["% of Batch", date], df.loc["Utilization", date])
+                    (machine, date, df.loc["Shift", date], df.loc["Batch", date], df.loc["Utilization", date], df.loc["Utilization", date])
                 )
         conn.commit()
         cur.close()
