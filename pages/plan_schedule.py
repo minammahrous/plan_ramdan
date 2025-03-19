@@ -6,7 +6,7 @@ from db import get_db_connection  # Importing database connection function
 # Load Machines
 def load_machines():
     conn = get_db_connection()
-    query = "SELECT machine FROM machines ORDER BY machine"
+    query = "SELECT name FROM machines ORDER BY name"
     machines = pd.read_sql(query, conn)
     conn.close()
     return machines["name"].tolist()
