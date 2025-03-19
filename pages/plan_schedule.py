@@ -48,7 +48,9 @@ if not machine_batches.empty:
             shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", ["LD", "NS", "ELD", "ND"], key=f"shift_{date}")
             batch = st.selectbox(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["batch_number"].tolist(), key=f"batch_{date}")
             percent = st.number_input(f"% of Batch ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, key=f"percent_{date}")
-            utilization = f"{percent}%"
+            
+            batch_time = machine_batches.loc[machine_batches["batch_number"] == batch, "time"].values[0]
+            utilization = f"{(percent / 100) * batch_time} hours"
             
             schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = shift
             schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = batch
@@ -64,11 +66,12 @@ if not machine_batches.empty:
         for date in date_range:
             cur.execute(
                 """
-                INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage) 
-                VALUES (%s, %s, %s, %s, %s)""",
+                INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
+                VALUES (%s, %s, %s, %s, %s, %s)""",
                 (selected_machine, date, schedule_df.loc["Shift", date.strftime("%Y-%m-%d")],
                  schedule_df.loc["Batch", date.strftime("%Y-%m-%d")],
-                 schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")]))
+                 schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")],
+                 schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")]))
         conn.commit()
         cur.close()
         conn.close()
