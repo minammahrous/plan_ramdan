@@ -84,6 +84,23 @@ if st.session_state.schedule_data:
         row = {"Machine": machine}
         for date in date_range.strftime("%Y-%m-%d"):
             row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['% of Batch', date]}<br>{df.loc['Utilization', date]}"
-        consolidated_df = consolidated_df.append(row, ignore_index=True)
+        consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
     
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+    
+    # Save Schedule Button
+    if st.button("Save Schedule"):
+        conn = get_db_connection()
+        cur = conn.cursor()
+        for machine, df in st.session_state.schedule_data.items():
+            for date in date_range.strftime("%Y-%m-%d"):
+                cur.execute(
+                    """
+                    INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
+                    VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (machine, date, df.loc["Shift", date], df.loc["Batch", date], df.loc["% of Batch", date], df.loc["Utilization", date])
+                )
+        conn.commit()
+        cur.close()
+        conn.close()
+        st.success("Schedule saved successfully!")
