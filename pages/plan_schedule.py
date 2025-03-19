@@ -9,12 +9,12 @@ def load_machines():
     query = "SELECT machine FROM machines ORDER BY machine"
     machines = pd.read_sql(query, conn)
     conn.close()
-    return machines["machine"].tolist()
+    return machines["name"].tolist()
 
 # Load Unscheduled Batches
 def load_unscheduled_batches():
     conn = get_db_connection()
-    query = "SELECT id, product, batch_number, machine FROM production_plan WHERE schedule = FALSE"
+    query = "SELECT id, product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
     batches = pd.read_sql(query, conn)
     conn.close()
     return batches
