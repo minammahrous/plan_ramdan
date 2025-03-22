@@ -93,7 +93,7 @@ def schedule_machine(machine_id):
                 st.session_state[batch_key] = selected_batches
 
                 
-            )
+                )
 
                 percent_selection = []
                 for batch in batch_selection:
