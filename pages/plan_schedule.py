@@ -6,6 +6,10 @@ from db import get_db_connection  # Importing database connection function
 # Shift durations in hours
 SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 15}
 
+# Initialize session state for progress tracking
+if "batch_progress" not in st.session_state:
+    st.session_state.batch_progress = {}
+
 # Load Machines
 def load_machines():
     conn = get_db_connection()
@@ -24,11 +28,21 @@ def load_unscheduled_batches():
     """
     batches = pd.read_sql(query, conn)
     conn.close()
-    
+
+    # Apply progress updates from session state
+    for idx, row in batches.iterrows():
+        batch_id = row["id"]
+        if batch_id in st.session_state.batch_progress:
+            row["progress"] = st.session_state.batch_progress[batch_id]
+
     # Calculate remaining progress
     batches["remaining_progress"] = 100 - batches["progress"]
+    
+    # Update display name to include remaining progress
     batches["display_name"] = batches["product"] + " - " + batches["batch_number"] + f" (Remaining: {batches['remaining_progress']}%)"
-    return batches
+    
+    # Only return batches that still have progress remaining
+    return batches[batches["remaining_progress"] > 0]
 
 # UI
 st.title("Machine Scheduling")
@@ -64,17 +78,27 @@ def schedule_machine(machine_id):
                 
                 batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}")
                 
-                percent_selection = [
-                    st.number_input(
+                percent_selection = []
+                for batch in batch_selection:
+                    batch_data = machine_batches[machine_batches["display_name"] == batch].iloc[0]
+                    batch_id = batch_data["id"]
+                    remaining_progress = int(batch_data["remaining_progress"])
+                    progress = int(batch_data["progress"])
+
+                    percent_done = st.number_input(
                         f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
                         min_value=0, 
-                        max_value=int(machine_batches.loc[machine_batches["display_name"] == batch, "remaining_progress"].values[0]), 
+                        max_value=remaining_progress, 
                         step=10, 
-                        value=int(machine_batches.loc[machine_batches["display_name"] == batch, "progress"].values[0]),  # Default to progress
+                        value=progress,  # Default to progress from DB
                         key=f"percent_{batch}_{date}_{machine_id}"
-                    ) 
-                    for batch in batch_selection
-                ]
+                    )
+                    percent_selection.append(percent_done)
+
+                    # Update session state progress tracking
+                    if batch_id not in st.session_state.batch_progress:
+                        st.session_state.batch_progress[batch_id] = progress  # Initialize with DB value
+                    st.session_state.batch_progress[batch_id] += percent_done
                 
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
@@ -85,7 +109,7 @@ def schedule_machine(machine_id):
                 schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
                 
         st.session_state.schedule_data[selected_machine] = schedule_df
-        
+
 # Initial Scheduling
 for i in range(len(st.session_state.machines_scheduled) + 1):
     schedule_machine(i)
@@ -111,22 +135,14 @@ if st.button("Save Schedule"):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    for machine, df in st.session_state.schedule_data.items():
-        for date in date_range.strftime("%Y-%m-%d"):
-            shift = df.loc["Shift", date]
-            batch_info = df.loc["Batch", date]
-            utilization = df.loc["Utilization", date]
-            downtime = df.loc["Downtime", date] if "Downtime" in df.index else ""
-            
-            query = """
-            INSERT INTO plan_instance (machine, date, shift, batch_info, utilization, downtime)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (machine, date) DO UPDATE 
-            SET shift = EXCLUDED.shift, batch_info = EXCLUDED.batch_info, utilization = EXCLUDED.utilization, downtime = EXCLUDED.downtime
-            """
-            cursor.execute(query, (machine, date, shift, batch_info, utilization, downtime))
+    for batch_id, new_progress in st.session_state.batch_progress.items():
+        if new_progress >= 100:
+            query = "UPDATE production_plan SET schedule = TRUE WHERE id = %s"
+            cursor.execute(query, (batch_id,))
+        else:
+            query = "UPDATE production_plan SET progress = %s WHERE id = %s"
+            cursor.execute(query, (new_progress, batch_id))
     
     conn.commit()
     conn.close()
     st.success("Schedule saved successfully!")
-
