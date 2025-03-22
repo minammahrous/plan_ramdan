@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from db import get_db_connection  # Database connection function
 
-# Shift durations in hours
+# Define shift durations in hours
 SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 15}
 
 # Initialize session state for storing unscheduled batches
@@ -28,8 +28,9 @@ if "unscheduled_batches" not in st.session_state:
 
     # Load data into session state
     st.session_state.unscheduled_batches = load_unscheduled_batches()
+    st.session_state.batch_progress = {}  # Track progress of each batch
 
-# UI
+# UI - Title
 st.title("Machine Scheduling")
 
 # Select Date Range
@@ -41,10 +42,20 @@ with col2:
 
 date_range = pd.date_range(start=start_date, end=end_date)
 
+# Initialize session state for machine scheduling
 if "machines_scheduled" not in st.session_state:
     st.session_state.machines_scheduled = []
     st.session_state.schedule_data = {}
 
+# Function to get machine list
+def load_machines():
+    conn = get_db_connection()
+    query = "SELECT DISTINCT machine FROM production_plan"
+    machines = pd.read_sql(query, conn)["machine"].tolist()
+    conn.close()
+    return machines
+
+# Function to schedule a machine
 def schedule_machine(machine_id):
     machines = load_machines()
     selected_machine = st.selectbox(f"Select Machine {machine_id+1}", machines, key=f"machine_{machine_id}")
@@ -78,35 +89,33 @@ def schedule_machine(machine_id):
                     batch_id = batch_data["id"]
                     remaining_progress = int(batch_data["remaining_progress"])  # Track remaining work
 
-    # Ensure the total doesn't exceed 100%
-    max_allowed = min(remaining_progress, 100 - st.session_state.batch_progress.get(batch_id, 0))
+                    # Ensure the total doesn't exceed 100%
+                    max_allowed = min(remaining_progress, 100 - st.session_state.batch_progress.get(batch_id, 0))
 
-    percent_done = st.number_input(
-        f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
-        min_value=0, 
-        max_value=max_allowed,  # Prevent exceeding 100%
-        step=10, 
-        value=min(max_allowed, remaining_progress),  # Default selection
-        key=f"percent_{batch}_{date}_{machine_id}"
-    )
+                    percent_done = st.number_input(
+                        f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
+                        min_value=0, 
+                        max_value=max_allowed,  
+                        step=10, 
+                        value=min(max_allowed, remaining_progress),  
+                        key=f"percent_{batch}_{date}_{machine_id}"
+                    )
 
-    # Update session state tracking
-    if batch_id not in st.session_state.batch_progress:
-        st.session_state.batch_progress[batch_id] = 0
-    st.session_state.batch_progress[batch_id] += percent_done
+                    # Update session state tracking
+                    if batch_id not in st.session_state.batch_progress:
+                        st.session_state.batch_progress[batch_id] = 0
+                    st.session_state.batch_progress[batch_id] += percent_done
 
-    # If fully scheduled, remove from DataFrame
-    if st.session_state.batch_progress[batch_id] >= 100:
-        machine_batches = machine_batches[machine_batches["id"] != batch_id]
+                    # If fully scheduled, remove from DataFrame
+                    if st.session_state.batch_progress[batch_id] >= 100:
+                        machine_batches = machine_batches[machine_batches["id"] != batch_id]
 
-    # Update session state DataFrame instead of DB
-    if percent_done >= remaining_progress:
-    # Remove fully scheduled batch
-        st.session_state.unscheduled_batches = st.session_state.unscheduled_batches[st.session_state.unscheduled_batches["id"] != batch_id]
-    else:
-    # Update remaining progress
-        st.session_state.unscheduled_batches.loc[
-        st.session_state.unscheduled_batches["id"] == batch_id, "remaining_progress"
+                    # Update session state DataFrame instead of DB
+                    if percent_done >= remaining_progress:
+                        st.session_state.unscheduled_batches = st.session_state.unscheduled_batches[st.session_state.unscheduled_batches["id"] != batch_id]
+                    else:
+                        st.session_state.unscheduled_batches.loc[
+                            st.session_state.unscheduled_batches["id"] == batch_id, "remaining_progress"
                         ] -= percent_done
 
                 # Calculate utilization percentage
