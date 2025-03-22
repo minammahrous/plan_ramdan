@@ -109,13 +109,24 @@ def schedule_machine(machine_id):
                     if st.session_state.batch_progress[batch_id] >= 100:
                         machine_batches = machine_batches[machine_batches["id"] != batch_id]
 
-                    total_utilization = sum(
-                        (
+                    # Compute total utilization safely
+                    if batch_selection:
+                        total_utilization = sum(
+                            (
                             machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100
                             if not machine_batches.loc[machine_batches["display_name"] == batch, "time"].empty else 0
-                           )
+                            )
                         for batch, percent in zip(batch_selection, percent_selection)
-                    )
+                        )
+                    else:
+                        total_utilization = 0  # Ensure it's defined
+
+                    # Prevent division by zero
+                    if SHIFT_DURATIONS[shift] > 0:
+                        utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100
+                    else:
+                        utilization_percentage = 0
+
     
                 formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in zip(batch_selection, percent_selection)])
                 schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
