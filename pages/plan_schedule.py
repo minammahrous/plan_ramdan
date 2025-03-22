@@ -105,17 +105,18 @@ def schedule_machine(machine_id):
                         st.session_state.batch_progress[batch_id] = 100 - remaining_progress  # Store actual progress
                     st.session_state.batch_progress[batch_id] += percent_done
 
-                    # If batch is fully scheduled, remove it from available list
+                   # If batch is fully scheduled, remove it from available list
                     if st.session_state.batch_progress[batch_id] >= 100:
                         machine_batches = machine_batches[machine_batches["id"] != batch_id]
-                
-              total_utilization = sum(
-                  (
-                    machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100
-                    if not machine_batches.loc[machine_batches["display_name"] == batch, "time"].empty else 0
-                 )
-                for batch, percent in zip(batch_selection, percent_selection)
-            )             
+
+                    total_utilization = sum(
+                        (
+                            machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100
+                            if not machine_batches.loc[machine_batches["display_name"] == batch, "time"].empty else 0
+                           )
+                        for batch, percent in zip(batch_selection, percent_selection)
+                    )
+    
                 formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in zip(batch_selection, percent_selection)])
                 schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
                 schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
