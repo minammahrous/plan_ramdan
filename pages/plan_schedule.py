@@ -67,6 +67,9 @@ def schedule_machine(machine_id):
     
     batches = load_unscheduled_batches()
     machine_batches = batches[batches["machine"] == selected_machine]
+
+    # Remove fully scheduled batches before displaying
+    machine_batches = machine_batches[machine_batches["remaining_progress"] > 0]
     
     if not machine_batches.empty:
         st.write(f"### Schedule for {selected_machine}")
@@ -75,30 +78,36 @@ def schedule_machine(machine_id):
         for date in date_range:
             with st.expander(f"{date.strftime('%Y-%m-%d')} - {selected_machine}"):
                 shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
-                
-                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}")
+
+                # Get list of batches with updated remaining progress
+                available_batches = machine_batches["display_name"].tolist()
+                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", available_batches, key=f"batch_{date}_{machine_id}")
                 
                 percent_selection = []
                 for batch in batch_selection:
                     batch_data = machine_batches[machine_batches["display_name"] == batch].iloc[0]
                     batch_id = batch_data["id"]
                     remaining_progress = int(batch_data["remaining_progress"])
-                    progress = int(batch_data["progress"])
 
+                    # Set default % Done to remaining progress but ensure it's not negative
                     percent_done = st.number_input(
                         f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
                         min_value=0, 
                         max_value=remaining_progress, 
                         step=10, 
-                        value=progress,  # Default to progress from DB
+                        value=min(remaining_progress, 100),  # Default to remaining progress, max 100%
                         key=f"percent_{batch}_{date}_{machine_id}"
                     )
                     percent_selection.append(percent_done)
 
-                    # Update session state progress tracking
+                    # Ensure progress updates correctly in session state
                     if batch_id not in st.session_state.batch_progress:
-                        st.session_state.batch_progress[batch_id] = progress  # Initialize with DB value
+                        st.session_state.batch_progress[batch_id] = 100 - remaining_progress  # Store actual progress
                     st.session_state.batch_progress[batch_id] += percent_done
+
+                    # If batch is fully scheduled, remove it from available list
+                    if st.session_state.batch_progress[batch_id] >= 100:
+                        machine_batches = machine_batches[machine_batches["id"] != batch_id]
                 
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
