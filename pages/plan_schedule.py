@@ -14,13 +14,20 @@ def load_machines():
     conn.close()
     return machines["name"].tolist()
 
-# Load Unscheduled Batches
+# Load Unscheduled Batches with Progress
 def load_unscheduled_batches():
     conn = get_db_connection()
-    query = "SELECT id, product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
+    query = """
+    SELECT id, product, batch_number, machine, time, progress 
+    FROM production_plan 
+    WHERE schedule = FALSE
+    """
     batches = pd.read_sql(query, conn)
     conn.close()
-    batches["display_name"] = batches["product"] + " - " + batches["batch_number"]
+    
+    # Calculate remaining progress
+    batches["remaining_progress"] = 100 - batches["progress"]
+    batches["display_name"] = batches["product"] + " - " + batches["batch_number"] + f" (Remaining: {batches['remaining_progress']}%)"
     return batches
 
 # UI
@@ -57,7 +64,17 @@ def schedule_machine(machine_id):
                 
                 batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}")
                 
-                percent_selection = [st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, value=100, key=f"percent_{batch}_{date}_{machine_id}") for batch in batch_selection]
+                percent_selection = [
+                    st.number_input(
+                        f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
+                        min_value=0, 
+                        max_value=int(machine_batches.loc[machine_batches["display_name"] == batch, "remaining_progress"].values[0]), 
+                        step=10, 
+                        value=int(machine_batches.loc[machine_batches["display_name"] == batch, "progress"].values[0]),  # Default to progress
+                        key=f"percent_{batch}_{date}_{machine_id}"
+                    ) 
+                    for batch in batch_selection
+                ]
                 
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
@@ -67,17 +84,6 @@ def schedule_machine(machine_id):
                 schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
                 schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
                 
-                # Downtime Selection
-                if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
-                    if (selected_machine, date) not in st.session_state.downtime_data:
-                        st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
-
-                if (selected_machine, date) in st.session_state.downtime_data:
-                    dt_type = st.selectbox("Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}")
-                    dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
-                    st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
-                    schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
-        
         st.session_state.schedule_data[selected_machine] = schedule_df
         
 # Initial Scheduling
