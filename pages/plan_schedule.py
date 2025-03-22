@@ -99,14 +99,14 @@ def schedule_machine(machine_id):
     if st.session_state.batch_progress[batch_id] >= 100:
         machine_batches = machine_batches[machine_batches["id"] != batch_id]
 
-                    # Update session state DataFrame instead of DB
-                    if percent_done >= remaining_progress:
-                        # Remove fully scheduled batch
-                        st.session_state.unscheduled_batches = st.session_state.unscheduled_batches[st.session_state.unscheduled_batches["id"] != batch_id]
-                    else:
-                        # Update remaining progress
-                        st.session_state.unscheduled_batches.loc[
-                            st.session_state.unscheduled_batches["id"] == batch_id, "remaining_progress"
+    # Update session state DataFrame instead of DB
+    if percent_done >= remaining_progress:
+    # Remove fully scheduled batch
+        st.session_state.unscheduled_batches = st.session_state.unscheduled_batches[st.session_state.unscheduled_batches["id"] != batch_id]
+    else:
+    # Update remaining progress
+        st.session_state.unscheduled_batches.loc[
+        st.session_state.unscheduled_batches["id"] == batch_id, "remaining_progress"
                         ] -= percent_done
 
                 # Calculate utilization percentage
