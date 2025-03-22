@@ -76,19 +76,28 @@ def schedule_machine(machine_id):
                 for batch in batch_selection:
                     batch_data = machine_batches[machine_batches["display_name"] == batch].iloc[0]
                     batch_id = batch_data["id"]
-                    remaining_progress = int(batch_data["remaining_progress"])
-                    progress_from_db = int(batch_data["progress"])  # % Done from DB
+                    remaining_progress = int(batch_data["remaining_progress"])  # Track remaining work
 
-                    # Set default % Done to progress from DB
-                    percent_done = st.number_input(
-                        f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
-                        min_value=0, 
-                        max_value=remaining_progress, 
-                        step=10, 
-                        value=progress_from_db,  # Default to progress from DB
-                        key=f"percent_{batch}_{date}_{machine_id}"
-                    )
-                    percent_selection.append(percent_done)
+    # Ensure the total doesn't exceed 100%
+    max_allowed = min(remaining_progress, 100 - st.session_state.batch_progress.get(batch_id, 0))
+
+    percent_done = st.number_input(
+        f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
+        min_value=0, 
+        max_value=max_allowed,  # Prevent exceeding 100%
+        step=10, 
+        value=min(max_allowed, remaining_progress),  # Default selection
+        key=f"percent_{batch}_{date}_{machine_id}"
+    )
+
+    # Update session state tracking
+    if batch_id not in st.session_state.batch_progress:
+        st.session_state.batch_progress[batch_id] = 0
+    st.session_state.batch_progress[batch_id] += percent_done
+
+    # If fully scheduled, remove from DataFrame
+    if st.session_state.batch_progress[batch_id] >= 100:
+        machine_batches = machine_batches[machine_batches["id"] != batch_id]
 
                     # Update session state DataFrame instead of DB
                     if percent_done >= remaining_progress:
