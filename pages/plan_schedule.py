@@ -91,10 +91,7 @@ def schedule_machine(machine_id):
 
                 # Store the updated selection in session state
                 st.session_state[batch_key] = selected_batches
-
-                
-                )
-
+          
                 percent_selection = []
                 for batch in batch_selection:
                     batch_data = machine_batches[machine_batches["display_name"] == batch].iloc[0]
