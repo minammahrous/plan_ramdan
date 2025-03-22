@@ -76,11 +76,23 @@ def schedule_machine(machine_id):
                 machine_batches["display_name"] = machine_batches.apply(
                     lambda row: f"{row['product']} - {row['batch_number']} (Remaining: {int(row['remaining_progress'])}%)", axis=1
                 )
-                
-                batch_selection = st.multiselect(
+                # Key to store selection per date/machine
+                batch_key = f"batch_{date}_{machine_id}"
+                if batch_key not in st.session_state:
+                    st.session_state[batch_key] = []
+
+                # Multiselect with persistent selection
+                selected_batches = st.multiselect(
                     f"Batch ({date.strftime('%Y-%m-%d')})",
                     machine_batches["display_name"].tolist(),
-                    key=f"batch_{date}_{machine_id}"
+                    default=st.session_state[batch_key],  # Persist selections
+                    key=batch_key
+                )
+
+# Store the updated selection in session state
+st.session_state[batch_key] = selected_batches
+
+                
                 )
 
                 percent_selection = []
