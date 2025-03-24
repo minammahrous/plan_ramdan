@@ -154,7 +154,7 @@ if st.session_state.schedule_data:
         for date in date_columns:
             shift = df.loc["Shift", date] if date in df.columns else "-"
             batch = df.loc["Batch", date] if date in df.columns else "-"
-            utilization = f"Util= {util:.2f}%" if util and not pd.isna(util) else ""
+            utilization = f"Util= {utilization_percentage:.2f}%" if utilization_percentage is not None and not pd.isna(utilization_percentage) else ""
             downtime = df.loc["Downtime", date] if "Downtime" in df.index and date in df.columns else "-"
 
             # Replace any `nan` values with "-"
