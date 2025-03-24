@@ -86,8 +86,9 @@ def schedule_machine(machine_id):
                                 available_progress,
                                 step=10,
                                 value=min(100, available_progress),
-                                key=f"percent_{batch}_{date}_{machine_id}"
+                                key=f"percent_{batch}_{date.strftime('%Y-%m-%d')}_{machine_id}_{i}"  # Ensure uniqueness
                             )
+
         
                             percent_selection.append(percent)
 
