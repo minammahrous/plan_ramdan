@@ -20,7 +20,7 @@ def load_unscheduled_batches():
     query = "SELECT id, product, batch_number, machine, time, progress FROM production_plan WHERE schedule = FALSE"
     batches = pd.read_sql(query, conn)
     conn.close()
-    batches["display_name"] = batches["product"] + " - " + batches["batch_number"] + f" ({batches['progress']}% done)"
+    batches["display_name"] = batches["product"] + " - " + batches["batch_number"] + " (" + batches["progress"].astype(str) + "% done)"
     return batches
 
 # UI
