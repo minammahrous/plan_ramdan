@@ -70,14 +70,16 @@ def schedule_machine(machine_id):
                 )
 
                 batch_selection = st.multiselect(
-                    f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}"
+                    f"Batch ({date.strftime('%Y-%m-%d')})", 
+                    machine_batches["display_name"].str.replace(r"\s*\(\d+\.\d+%\s*done\)", "", regex=True).tolist(),  # Remove % done from batch names
+                    key=f"batch_{date}_{machine_id}"
                 )
 
                 percent_selection = []
                 remaining_batches = []
 
                 for batch in batch_selection:
-                    matched_batches = machine_batches[machine_batches["display_name"] == batch]
+                    matched_batches = machine_batches[machine_batches["display_name"].str.contains(batch, regex=False)]
 
                     if not matched_batches.empty:
                         batch_id = matched_batches.index[0]
@@ -94,7 +96,7 @@ def schedule_machine(machine_id):
 
                         percent_selection.append((batch, percent))
 
-                        # Update progress for the batch in session state
+                        # Track progress correctly
                         prev_progress = st.session_state.batch_progress.get(batch, matched_batches.loc[batch_id, "progress"])
                         new_progress = prev_progress + percent
 
@@ -104,7 +106,6 @@ def schedule_machine(machine_id):
                         if new_progress < 100:
                             remaining_batches.append(batch)
 
-                # Update available batches for next selection
                 machine_batches = machine_batches[machine_batches["display_name"].isin(remaining_batches)]
 
                 total_utilization = sum(
@@ -115,23 +116,12 @@ def schedule_machine(machine_id):
 
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
 
-                # Display only the selected percentage for the day
+                # Fix display: remove syntax errors and clean % done
                 formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in percent_selection])
-                schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
-                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
-                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
-
-                # Downtime Selection
-                if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
-                    st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
-
-                if (selected_machine, date) in st.session_state.downtime_data:
-                    dt_type = st.selectbox(
-                        "Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}"
-                    )
-                    dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
-                    st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
-                    schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
+                schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>" if shift else ""
+                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches if formatted_batches else "-"
+                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%" if utilization_percentage > 0 else "-"
+                schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>" if (selected_machine, date) in st.session_state.downtime_data else "-"
 
         st.session_state.schedule_data[selected_machine] = schedule_df
 
