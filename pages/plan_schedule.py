@@ -150,21 +150,21 @@ if st.session_state.schedule_data:
     consolidated_df = pd.DataFrame(columns=["Machine"] + date_columns)
 
     for machine, df in st.session_state.schedule_data.items():
-    row = {"Machine": machine}
-    for date in date_columns:
-        shift = df.loc["Shift", date] if date in df.columns else "-"
-        batch = df.loc["Batch", date] if date in df.columns else "-"
-        utilization = df.loc["Utilization", date] if "Utilization" in df.index and date in df.columns else "-"
-        downtime = df.loc["Downtime", date] if "Downtime" in df.index and date in df.columns else "-"
+        row = {"Machine": machine}
+        for date in date_columns:
+            shift = df.loc["Shift", date] if date in df.columns else "-"
+            batch = df.loc["Batch", date] if date in df.columns else "-"
+            utilization = df.loc["Utilization", date] if "Utilization" in df.index and date in df.columns else "-"
+            downtime = df.loc["Downtime", date] if "Downtime" in df.index and date in df.columns else "-"
 
         # Replace any `nan` values with "-"
-        shift = shift if pd.notna(shift) else "-"
-        batch = batch if pd.notna(batch) else "-"
-        utilization = utilization if pd.notna(utilization) else "-"
-        downtime = downtime if pd.notna(downtime) else "-"
+            shift = shift if pd.notna(shift) else "-"
+            batch = batch if pd.notna(batch) else "-"
+            utilization = utilization if pd.notna(utilization) else "-"
+            downtime = downtime if pd.notna(downtime) else "-"
 
         # Concatenate values
-        row[date] = "<br>".join(filter(None, [shift, batch, utilization, downtime]))
+            row[date] = "<br>".join(filter(None, [shift, batch, utilization, downtime]))
 
     consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
 
