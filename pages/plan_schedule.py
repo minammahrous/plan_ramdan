@@ -105,12 +105,12 @@ if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
     all_data = []
     if st.session_state.schedule_data:
-    st.write("### Consolidated Schedule")
-    all_data = []
-    for machine, df in st.session_state.schedule_data.items():
-        if "Machine" not in df.columns:  # ✅ Check before inserting
-            df.insert(0, "Machine", machine)
-        all_data.append(df)
+        st.write("### Consolidated Schedule")
+        all_data = []
+        for machine, df in st.session_state.schedule_data.items():
+            if "Machine" not in df.columns:  # ✅ Check before inserting
+                df.insert(0, "Machine", machine)
+            all_data.append(df)
     
     consolidated_df = pd.concat(all_data)
     st.dataframe(consolidated_df)
