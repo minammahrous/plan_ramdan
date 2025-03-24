@@ -79,8 +79,8 @@ def schedule_machine(machine_id):
                         machine_batches.drop(batch_id, inplace=True)
                 
                 total_utilization = sum(
-                (machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100)
-                if not machine_batches.loc[machine_batches["display_name"] == batch, "time"].empty else 0
+                    (machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100)
+                    if len(machine_batches.loc[machine_batches["display_name"] == batch, "time"].values) > 0 else 0
                     for batch, percent in zip(batch_selection, percent_selection)
                 )
 
