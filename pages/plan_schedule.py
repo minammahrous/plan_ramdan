@@ -119,7 +119,7 @@ def schedule_machine(machine_id):
                 formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in percent_selection])
                 schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
                 schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
-                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {Util=:.2f}%"
+                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
 
                 # Downtime Selection
                 if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
