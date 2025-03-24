@@ -119,7 +119,7 @@ def schedule_machine(machine_id):
                 formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in percent_selection])
                 schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
                 schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
-                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
+                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {Util=:.2f}%"
 
                 # Downtime Selection
                 if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
@@ -154,7 +154,7 @@ if st.session_state.schedule_data:
         for date in date_columns:
             shift = df.loc["Shift", date] if date in df.columns else "-"
             batch = df.loc["Batch", date] if date in df.columns else "-"
-            utilization = df.loc["Utilization", date] if date in df.columns else "-"
+            utilization = f"Util= {util:.2f}%" if util and not pd.isna(util) else ""
             downtime = df.loc["Downtime", date] if "Downtime" in df.index and date in df.columns else "-"
 
             # Replace any `nan` values with "-"
@@ -164,8 +164,7 @@ if st.session_state.schedule_data:
             downtime = downtime if pd.notna(downtime) else "-"
 
             # Concatenate values with <br> only if they are not empty or "-"
-            row[date] = "<br>".join(filter(lambda x: x != "-", [shift, batch, utilization, downtime]))
-
+            row[date] = "<br>".join(filter(None, [shift, formatted_batches, utilization, downtime]))
         consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
 
     # Display table with markdown for HTML rendering
