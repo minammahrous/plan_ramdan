@@ -90,15 +90,34 @@ if st.button("Add Another Machine"):
 # Display All Scheduled Machines in a Single Table
 if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
-    consolidated_df = pd.DataFrame(columns=["Machine"] + date_range.strftime("%Y-%m-%d").tolist())
     
+    # Ensure date_range is valid
+    if not date_range.empty:
+        date_columns = date_range.strftime("%Y-%m-%d").tolist()
+    else:
+        st.error("Invalid date range selected. Please adjust the Start and End dates.")
+        date_columns = []
+
+    # Create an empty DataFrame
+    consolidated_df = pd.DataFrame(columns=["Machine"] + date_columns)
+
     for machine, df in st.session_state.schedule_data.items():
         row = {"Machine": machine}
-        for date in date_range.strftime("%Y-%m-%d"):
-            row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['Utilization', date]}<br>{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
+        
+        for date in date_columns:
+            shift = df.loc["Shift", date] if date in df.columns else ""
+            batch = df.loc["Batch", date] if date in df.columns else ""
+            utilization = df.loc["Utilization", date] if date in df.columns else ""
+            downtime = df.loc["Downtime", date] if "Downtime" in df.index and date in df.columns else ""
+
+            row[date] = f"{shift}<br>{batch}<br>{utilization}<br>{downtime}"
+
+        # Append row as DataFrame to consolidated_df
         consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
     
+    # Display the table in Streamlit with HTML formatting
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
 
 # Save Button
 if st.button("Save Schedule"):
