@@ -152,18 +152,7 @@ if st.session_state.schedule_data:
 
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-# Display All Scheduled Machines in a Single Table
-if st.session_state.schedule_data:
-    st.write("### Consolidated Schedule")
-    consolidated_df = pd.DataFrame(columns=["Machine"] + date_range.strftime("%Y-%m-%d").tolist())
-    
-    for machine, df in st.session_state.schedule_data.items():
-        row = {"Machine": machine}
-        for date in date_range.strftime("%Y-%m-%d"):
-            row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['Utilization', date]}<br>{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
-        consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
-    
-    st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
 
 # Save Button
 if st.button("Save Schedule"):
