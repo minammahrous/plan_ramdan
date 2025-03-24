@@ -37,8 +37,12 @@ date_range = pd.date_range(start=start_date, end=end_date)
 
 if "machines_scheduled" not in st.session_state:
     st.session_state.machines_scheduled = []
+
+if "schedule_data" not in st.session_state:
     st.session_state.schedule_data = {}
-    st.session_state.downtime_data = {}
+
+if "downtime_data" not in st.session_state:
+    st.session_state.downtime_data = {}  # Initialize as an empty dictionary
 
 def schedule_machine(machine_id):
     machines = load_machines()
