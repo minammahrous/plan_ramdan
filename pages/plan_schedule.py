@@ -110,6 +110,9 @@ for i in range(len(st.session_state.machines_scheduled) + 1):
 
 if st.button("Add Another Machine"):
     st.session_state.machines_scheduled.append(f"machine_{len(st.session_state.machines_scheduled) + 1}")
+if machine in st.session_state.schedule_data:
+    st.write(f"### Schedule for {machine}")
+    st.dataframe(st.session_state.schedule_data[machine])
 
 # Save Button
 if st.button("Save Schedule"):
