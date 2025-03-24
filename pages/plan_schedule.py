@@ -68,8 +68,8 @@ def schedule_machine(machine_id):
                 percent_selection = []
                 for batch in batch_selection:
                     batch_id = machine_batches[machine_batches["display_name"] == batch].index[0]
-                    available_progress = int(100 - machine_batches.loc[batch_id, "progress"])
-                    
+                    if isinstance(batch_id, (int, np.integer)):  # Ensure batch_id is valid
+                        available_progress = int(100 - machine_batches.loc[batch_id, "progress"])
                     percent = st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, available_progress, step=10, value=min(100, available_progress), key=f"percent_{batch}_{date}_{machine_id}")
                     percent_selection.append(percent)
                     
