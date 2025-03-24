@@ -5,6 +5,15 @@ from db import get_db_connection  # Importing database connection function
 
 # Shift durations in hours
 SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 15}
+# Initialize session state variables
+if "machines_scheduled" not in st.session_state:
+    st.session_state.machines_scheduled = []
+if "schedule_data" not in st.session_state:
+    st.session_state.schedule_data = {}
+if "selected_batches_df" not in st.session_state:
+    st.session_state.selected_batches_df = pd.DataFrame(columns=["product", "batch_number", "machine", "time"])
+if "schedule_df" not in st.session_state:
+    st.session_state.schedule_df = pd.DataFrame(columns=["Machine", "Date", "Shift", "Batch", "% of Batch", "Utilization"])
 
 # Load Machines
 def load_machines():
