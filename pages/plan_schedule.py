@@ -7,7 +7,6 @@ from db import get_db_connection  # Importing database connection function
 SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 15}
 
 # Load Machines
-@st.cache_data
 def load_machines():
     conn = get_db_connection()
     query = "SELECT name FROM machines ORDER BY name"
@@ -16,15 +15,12 @@ def load_machines():
     return machines["name"].tolist()
 
 # Load Unscheduled Batches
-@st.cache_data
 def load_unscheduled_batches():
     conn = get_db_connection()
-    query = "SELECT id, product, batch_number, machine, time, progress FROM production_plan WHERE schedule = FALSE"
+    query = "SELECT id, product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
     batches = pd.read_sql(query, conn)
     conn.close()
-    batches["display_name"] = (
-        batches["product"] + " - " + batches["batch_number"] + " (" + batches["progress"].astype(str) + "% done)"
-    )
+    batches["display_name"] = batches["product"] + " - " + batches["batch_number"]
     return batches
 
 # UI
@@ -39,102 +35,48 @@ with col2:
 
 date_range = pd.date_range(start=start_date, end=end_date)
 
-# Initialize session states
 if "machines_scheduled" not in st.session_state:
     st.session_state.machines_scheduled = []
-
-if "schedule_data" not in st.session_state:
     st.session_state.schedule_data = {}
 
-if "downtime_data" not in st.session_state:
-    st.session_state.downtime_data = {}
-
-if "batch_progress" not in st.session_state:
-    st.session_state.batch_progress = {}
-
 def schedule_machine(machine_id):
+    # Select Machine
     machines = load_machines()
     selected_machine = st.selectbox(f"Select Machine {machine_id+1}", machines, key=f"machine_{machine_id}")
-
+    
+    # Load Available Batches
     batches = load_unscheduled_batches()
-    machine_batches = batches[batches["machine"] == selected_machine].copy()
-
+    machine_batches = batches[batches["machine"] == selected_machine]
+    
     if not machine_batches.empty:
         st.write(f"### Schedule for {selected_machine}")
-        schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization", "Downtime"], columns=date_range.strftime("%Y-%m-%d"))
-
+        schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization"], columns=date_range.strftime("%Y-%m-%d"))
+        
         for date in date_range:
             with st.expander(f"{date.strftime('%Y-%m-%d')} - {selected_machine}"):
-                shift = st.selectbox(
-                    f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}"
-                )
-
-                batch_selection = st.multiselect(
-                    f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}"
-                )
-
+                shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
+                
+                available_batches = machine_batches["display_name"].tolist()
+                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", available_batches, key=f"batch_{date}_{machine_id}")
+                
                 percent_selection = []
-                remaining_batches = []
-
                 for batch in batch_selection:
-                    matched_batches = machine_batches[machine_batches["display_name"] == batch]
-
-                    if not matched_batches.empty:
-                        batch_id = matched_batches.index[0]
-                        available_progress = int(100 - matched_batches.loc[batch_id, "progress"])
-
-                        percent = st.number_input(
-                            f"% of {batch} ({date.strftime('%Y-%m-%d')})",
-                            0,
-                            available_progress,
-                            step=10,
-                            value=min(100, available_progress),
-                            key=f"percent_{batch}_{date.strftime('%Y-%m-%d')}_{machine_id}",
-                        )
-
-                        percent_selection.append((batch, percent))
-
-                        # Update progress for the batch in session state
-                        prev_progress = st.session_state.batch_progress.get(batch, matched_batches.loc[batch_id, "progress"])
-                        new_progress = prev_progress + percent
-
-                        st.session_state.batch_progress[batch] = new_progress
-
-                        # Keep batch in selection if not fully scheduled
-                        if new_progress < 100:
-                            remaining_batches.append(batch)
-
-                # Update available batches for next selection
-                machine_batches = machine_batches[machine_batches["display_name"].isin(remaining_batches)]
-
-                total_utilization = sum(
-                    (machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100)
-                    if len(machine_batches.loc[machine_batches["display_name"] == batch, "time"].values) > 0 else 0
-                    for batch, percent in percent_selection
-                )
-
+                    percent = st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, value=100, key=f"percent_{batch}_{date}_{machine_id}")
+                    percent_selection.append(percent)
+                
+                total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
-
-                # Display only the selected percentage for the day
-                formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in percent_selection])
-                schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
-                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
-                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
-
-                # Downtime Selection
-                if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
-                    st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
-
-                if (selected_machine, date) in st.session_state.downtime_data:
-                    dt_type = st.selectbox(
-                        "Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}"
-                    )
-                    dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
-                    st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
-                    schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
-
+                
+                schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = shift
+                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = ", ".join(batch_selection)
+                schedule_df.loc["% of Batch", date.strftime("%Y-%m-%d")] = ", ".join(map(str, percent_selection))
+                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"{utilization_percentage:.2f}%"
+        
         st.session_state.schedule_data[selected_machine] = schedule_df
-
+        
+        st.write("### Planned Schedule")
+        st.dataframe(schedule_df)
+        
 # Initial Scheduling
 for i in range(len(st.session_state.machines_scheduled) + 1):
     schedule_machine(i)
@@ -145,54 +87,27 @@ if st.button("Add Another Machine"):
 # Display All Scheduled Machines in a Single Table
 if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
-
-    date_columns = date_range.strftime("%Y-%m-%d").tolist()
-    consolidated_df = pd.DataFrame(columns=["Machine"] + date_columns)
-
+    all_data = []
     for machine, df in st.session_state.schedule_data.items():
-        row = {"Machine": machine}
-        for date in date_columns:
-            shift = df.loc["Shift", date] if date in df.columns else "-"
-            batch = df.loc["Batch", date] if date in df.columns else "-"
-            utilization = df.loc["Utilization", date] if "Utilization" in df.index and date in df.columns else "-"
-            downtime = df.loc["Downtime", date] if "Downtime" in df.index and date in df.columns else "-"
-
-        # Replace any `nan` values with "-"
-            shift = shift if pd.notna(shift) else "-"
-            batch = batch if pd.notna(batch) else "-"
-            utilization = utilization if pd.notna(utilization) else "-"
-            downtime = downtime if pd.notna(downtime) else "-"
-
-        # Concatenate values
-            row[date] = "<br>".join(filter(None, [shift, batch, utilization, downtime]))
-
-    consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
-
-    # Display table with markdown for HTML rendering
-    st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-
-
-# Save Button
-if st.button("Save Schedule"):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+        df.insert(0, "Machine", machine)
+        all_data.append(df)
+    consolidated_df = pd.concat(all_data)
+    st.dataframe(consolidated_df)
     
-    for machine, df in st.session_state.schedule_data.items():
-        for date in date_range.strftime("%Y-%m-%d"):
-            shift = df.loc["Shift", date]
-            batch_info = df.loc["Batch", date]
-            utilization = df.loc["Utilization", date]
-            downtime = df.loc["Downtime", date] if "Downtime" in df.index else ""
-            
-            query = """
-            INSERT INTO plan_instance (machine, date, shift, batch_info, utilization, downtime)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (machine, date) DO UPDATE 
-            SET shift = EXCLUDED.shift, batch_info = EXCLUDED.batch_info, utilization = EXCLUDED.utilization, downtime = EXCLUDED.downtime
-            """
-            cursor.execute(query, (machine, date, shift, batch_info, utilization, downtime))
-    
-    conn.commit()
-    conn.close()
-    st.success("Schedule saved successfully!")
+    if st.button("Save Full Schedule"):
+        conn = get_db_connection()
+        cur = conn.cursor()
+        for machine, df in st.session_state.schedule_data.items():
+            for date in date_range:
+                cur.execute(
+                    """
+                    INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
+                    VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (machine, date, df.loc["Shift", date.strftime("%Y-%m-%d")],
+                     df.loc["Batch", date.strftime("%Y-%m-%d")],
+                     df.loc["% of Batch", date.strftime("%Y-%m-%d")],
+                     df.loc["Utilization", date.strftime("%Y-%m-%d")]))
+        conn.commit()
+        cur.close()
+        conn.close()
+        st.success("Full schedule saved successfully!")
