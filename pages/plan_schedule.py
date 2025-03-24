@@ -52,7 +52,6 @@ if "downtime_data" not in st.session_state:
 if "batch_progress" not in st.session_state:
     st.session_state.batch_progress = {}
 
-# Schedule Machine
 def schedule_machine(machine_id):
     machines = load_machines()
     selected_machine = st.selectbox(f"Select Machine {machine_id+1}", machines, key=f"machine_{machine_id}")
@@ -70,40 +69,46 @@ def schedule_machine(machine_id):
                     f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}"
                 )
 
+                # Update remaining progress dynamically
+                for idx, row in machine_batches.iterrows():
+                    batch_id = row["id"]
+                    if batch_id in st.session_state.batch_progress:
+                        machine_batches.at[idx, "progress"] = st.session_state.batch_progress[batch_id]
+
+                machine_batches["remaining_progress"] = 100 - machine_batches["progress"]
+                available_batches = machine_batches[machine_batches["remaining_progress"] > 0]
+
                 batch_selection = st.multiselect(
-                    f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}"
+                    f"Batch ({date.strftime('%Y-%m-%d')})",
+                    available_batches["display_name"].tolist(),
+                    key=f"batch_{date}_{machine_id}"
                 )
 
                 percent_selection = []
-                to_remove = []
-                
+                updated_progress = {}
+
                 for batch in batch_selection:
-                    matched_batches = machine_batches[machine_batches["display_name"] == batch]
+                    matched_batches = available_batches[available_batches["display_name"] == batch]
 
                     if not matched_batches.empty:
                         batch_id = matched_batches.index[0]
-                        available_progress = int(100 - matched_batches.loc[batch_id, "progress"])
+                        max_available = int(matched_batches.loc[batch_id, "remaining_progress"])
 
                         percent = st.number_input(
                             f"% of {batch} ({date.strftime('%Y-%m-%d')})",
                             0,
-                            available_progress,
+                            max_available,
                             step=10,
-                            value=min(100, available_progress),
+                            value=min(100, max_available),
                             key=f"percent_{batch}_{date.strftime('%Y-%m-%d')}_{machine_id}",
                         )
 
                         percent_selection.append(percent)
+                        updated_progress[batch_id] = matched_batches.loc[batch_id, "progress"] + percent
 
-                        # Update session state progress
-                        st.session_state.batch_progress[batch] = st.session_state.batch_progress.get(batch, matched_batches.loc[batch_id, "progress"]) + percent
-
-                        # Remove batch if fully scheduled
-                        if st.session_state.batch_progress[batch] >= 100:
-                            to_remove.append(batch)
-
-                # Remove fully scheduled batches
-                machine_batches = machine_batches[~machine_batches["display_name"].isin(to_remove)]
+                # Save updated progress in session state
+                for batch_id, new_progress in updated_progress.items():
+                    st.session_state.batch_progress[batch_id] = new_progress
 
                 total_utilization = sum(
                     (machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100)
@@ -113,7 +118,9 @@ def schedule_machine(machine_id):
 
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
 
+                # ✅ Display only % scheduled for the selected day
                 formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in zip(batch_selection, percent_selection)])
+
                 schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
                 schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
                 schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
