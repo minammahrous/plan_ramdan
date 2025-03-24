@@ -67,9 +67,37 @@ def schedule_machine(machine_id):
                 
                 percent_selection = []
                 for batch in batch_selection:
-                    batch_id = machine_batches[machine_batches["display_name"] == batch].index[0]
-                    if isinstance(batch_id, int):  # Ensure batch_id is valid
-                        available_progress = int(100 - machine_batches.loc[batch_id, "progress"])
+                    for batch in batch_selection:
+                        matched_batches = machine_batches[machine_batches["display_name"] == batch]
+
+                        if not matched_batches.empty:
+                            batch_id = matched_batches.index[0]
+
+        # Ensure 'progress' column exists
+                            if "progress" in matched_batches.columns:
+                                available_progress = int(100 - matched_batches.loc[batch_id, "progress"])
+                            else:
+                                st.error(f"Column 'progress' is missing for batch {batch}.")
+                                continue  # Skip processing this batch
+
+                            percent = st.number_input(
+                                f"% of {batch} ({date.strftime('%Y-%m-%d')})",
+                                0,
+                                available_progress,
+                                step=10,
+                                value=min(100, available_progress),
+                                key=f"percent_{batch}_{date}_{machine_id}"
+                            )
+        
+                            percent_selection.append(percent)
+
+                            # Update progress safely
+                            st.session_state.batch_progress[batch] = st.session_state.batch_progress.get(batch, matched_batches.loc[batch_id, "progress"]) + percent
+                            if st.session_state.batch_progress[batch] >= 100:
+                                machine_batches.drop(batch_id, inplace=True)
+                        else:
+                            st.warning(f"Batch {batch} not found in machine_batches.")
+
                     percent = st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, available_progress, step=10, value=min(100, available_progress), key=f"percent_{batch}_{date}_{machine_id}")
                     percent_selection.append(percent)
                     
