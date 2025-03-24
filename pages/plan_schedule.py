@@ -120,11 +120,12 @@ if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
     all_data = []
     for machine, df in st.session_state.schedule_data.items():
-        df.insert(0, "Machine", machine)
+        if "Machine" not in df.columns:  # ✅ Prevent duplicate column insertion
+            df.insert(0, "Machine", machine)
         all_data.append(df)
     consolidated_df = pd.concat(all_data)
     st.dataframe(consolidated_df)
-   
+  
     if st.button("Save Full Schedule"):
         conn = get_db_connection()
         cur = conn.cursor()
