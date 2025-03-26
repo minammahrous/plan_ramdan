@@ -51,12 +51,17 @@ def schedule_machine(machine_id):
     selected_machine = st.selectbox(f"Select Machine {machine_id + 1}", machines, key=f"machine_{machine_id}")
 
     batches = load_unscheduled_batches()
+    
+    if batches.empty:
+        st.warning("No unscheduled batches available in the database.")
+        return
+
     machine_batches = batches[batches["machine"] == selected_machine]
 
     # Ensure progress_remaining is initialized for the selected machine
     if selected_machine not in st.session_state.progress_remaining:
         st.session_state.progress_remaining[selected_machine] = {batch: progress for batch, progress in zip(machine_batches["display_name"], machine_batches["progress"])}
-    
+
     if not machine_batches.empty:
         st.write(f"### Schedule for {selected_machine}")
         schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization", "Downtime"], columns=date_range.strftime("%Y-%m-%d"))
@@ -71,6 +76,10 @@ def schedule_machine(machine_id):
 
                 # Dynamically set the available batch selections based on remaining progress
                 allowed_batches = {batch: progress for batch, progress in st.session_state.progress_remaining[selected_machine].items() if progress > 0}
+                
+                if not allowed_batches:
+                    st.warning("No batches are available for selection based on progress remaining.")
+                    continue
                 
                 batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", list(allowed_batches.keys()), key=f"batch_{date}_{machine_id}")
                 
@@ -100,7 +109,7 @@ def schedule_machine(machine_id):
                     dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
                     st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
                     schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
-        
+
         st.session_state.schedule_data[selected_machine] = schedule_df
         
         # Update selected batches
