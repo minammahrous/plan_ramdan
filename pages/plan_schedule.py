@@ -45,7 +45,7 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.downtime_data = {}
 if "batch_percentages" not in st.session_state:
     st.session_state.batch_percentages = {
-        row["display_name"]: row["remaining_percentage"] for _, row in st.session_state.unscheduled_batches.iterrows()
+        row["display_name"]: row["remaining_percentage"] for _, row in st.session_state.batches.iterrows()
     }
 
 def schedule_machine(machine_id):
