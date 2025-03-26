@@ -141,6 +141,10 @@ def schedule_machine(machine_id):
                 st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
                 schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
 
+            # Update schedule data
+            st.session_state.schedule_data[selected_machine] = schedule_df
+
+    # Update schedule data
     st.session_state.schedule_data[selected_machine] = schedule_df
 
 # Schedule Machines
