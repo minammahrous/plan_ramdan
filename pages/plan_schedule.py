@@ -17,7 +17,7 @@ def load_machines():
 def load_unscheduled_batches():
     conn = get_db_connection()
     query = """
-    SELECT id, product, batch_number, machine, time, progress
+    SELECT id, product, batch_number, machine, time, CAST(progress AS FLOAT) AS progress
     FROM production_plan 
     WHERE schedule = FALSE
     """
