@@ -74,8 +74,13 @@ def schedule_machine(machine_id):
                     max_percent = st.session_state.batch_percentages[batch]  # Get remaining %
                     percent = st.number_input(
                         f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
-                        min_value=0, max_value=max_percent, step=10, value=max_percent, key=f"percent_{batch}_{date}_{machine_id}"
+                        min_value=0.0,  # Ensure it's float
+                        max_value=float(max_percent),  # Convert max_percent to float
+                        step=10.0,  # Ensure step is float
+                        value=float(max_percent) if max_percent > 0 else 0.0,  # Ensure default value is float
+                        key=f"percent_{batch}_{date}_{machine_id}"
                     )
+
                     percent_selection.append(percent)
                     for batch, percent in zip(batch_selection, percent_selection):
                             st.session_state.batch_percentages[batch] -= percent  # Deduct assigned %
