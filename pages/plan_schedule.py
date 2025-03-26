@@ -35,26 +35,28 @@ with col2:
 
 date_range = pd.date_range(start=start_date, end=end_date)
 
+# Initialize session state variables
 if "machines_scheduled" not in st.session_state:
     st.session_state.machines_scheduled = []
     st.session_state.schedule_data = {}
     st.session_state.downtime_data = {}
-    st.session_state.progress_remaining = {}  # Track remaining progress for batches
+    st.session_state.progress_remaining = {}  # Initialize progress remaining for batches
 
 # Track already selected batches
 selected_batches = {}
 
 def schedule_machine(machine_id):
     machines = load_machines()
+    
     selected_machine = st.selectbox(f"Select Machine {machine_id + 1}", machines, key=f"machine_{machine_id}")
 
     batches = load_unscheduled_batches()
     machine_batches = batches[batches["machine"] == selected_machine]
 
-    # Initialize remaining progress for the machine's batches if not present
+    # Ensure progress_remaining is initialized for the selected machine
     if selected_machine not in st.session_state.progress_remaining:
         st.session_state.progress_remaining[selected_machine] = {batch: progress for batch, progress in zip(machine_batches["display_name"], machine_batches["progress"])}
-
+    
     if not machine_batches.empty:
         st.write(f"### Schedule for {selected_machine}")
         schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization", "Downtime"], columns=date_range.strftime("%Y-%m-%d"))
