@@ -118,7 +118,6 @@ if st.button("Save Full Schedule"):
                     """,
                     (machine, date, shift, None, None, None)
                 )
-    
     conn.commit()
     cur.close()
     conn.close()
