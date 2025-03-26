@@ -103,17 +103,25 @@ if st.session_state.schedule_data:
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 if st.button("Save Full Schedule"):
-        conn = get_db_connection()
-        cur = conn.cursor()
-        for machine, df in st.session_state.schedule_data.items():
-            for date in date_range:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    for machine, df in st.session_state.schedule_data.items():
+        for date in date_range:
+            # Check if the date exists in the DataFrame
+            if date.strftime("%Y-%m-%d") in df.columns:
+                shift = df.at[machine, date.strftime("%Y-%m-%d")] if machine in df.index else None
                 cur.execute(
                     """
                     INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
                     VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (machine, date, df.loc[machine, date.strftime("%Y-%m-%d")], None, None, None))
-        conn.commit()
-        cur.close()
-        conn.close()
-        st.success("Full schedule saved successfully!")
+                    (machine, date, shift, None, None, None)
+                )
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    st.success("Full schedule saved successfully!")  # Ensure proper indentation
+
