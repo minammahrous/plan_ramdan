@@ -48,14 +48,8 @@ if "unscheduled_batches" not in st.session_state:
 
 if "batch_percentages" not in st.session_state:
     st.session_state.batch_percentages = {
-        row["display_name"]: 100 - row["progress"] for _, row in st.session_state.unscheduled_batches.iterrows()
+        row["display_name"]: float(100 - row["progress"]) for _, row in st.session_state.unscheduled_batches.iterrows()
     }
-
-if "batch_percentages" not in st.session_state:
-    st.session_state.batch_percentages = {
-        row["display_name"]: row["remaining_percentage"] for _, row in st.session_state.unscheduled_batches.iterrows()
-    }
-
 def schedule_machine(machine_id):
     machines = load_machines()
     selected_machine = st.selectbox(f"Select Machine {machine_id+1}", machines, key=f"machine_{machine_id}")
