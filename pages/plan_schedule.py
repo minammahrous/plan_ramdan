@@ -42,15 +42,15 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.downtime_data = {}
     st.session_state.progress_remaining = {}
     st.session_state.total_allocated = {}
+    st.session_state.selected_batches = {}  # Track selected batches for each date
 
 # Track already selected batches
-selected_batches = {}
-
 def schedule_machine(machine_id):
     machines = load_machines()
     
     selected_machine = st.selectbox(f"Select Machine {machine_id + 1}", machines, key=f"machine_{machine_id}")
 
+    # Load unscheduled batches for selected machine
     batches = load_unscheduled_batches()
     
     if batches.empty:
@@ -59,10 +59,10 @@ def schedule_machine(machine_id):
 
     machine_batches = batches[batches["machine"] == selected_machine]
 
-    # Ensure progress_remaining and total_allocated are initialized for the selected machine
+    # Initialize progress_remaining and total_allocated for the selected machine
     if selected_machine not in st.session_state.progress_remaining:
         st.session_state.progress_remaining[selected_machine] = {batch: progress for batch, progress in zip(machine_batches["display_name"], machine_batches["progress"])}
-        st.session_state.total_allocated[selected_machine] = {batch: 0 for batch in machine_batches["display_name"]}  # Initialize total allocated
+        st.session_state.total_allocated[selected_machine] = {batch: 0 for batch in machine_batches["display_name"]}
 
     if not machine_batches.empty:
         st.write(f"### Schedule for {selected_machine}")
@@ -72,8 +72,12 @@ def schedule_machine(machine_id):
             with st.expander(f"{date.strftime('%Y-%m-%d')} - {selected_machine}"):
                 shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
 
-                # Get currently selected batches for the current machine and date
-                already_selected = selected_batches.get((selected_machine, date), [])
+                # Restore previously selected batches for this date
+                if (selected_machine, date) not in st.session_state.selected_batches:
+                    st.session_state.selected_batches[(selected_machine, date)] = []
+
+                selected_batches_for_date = st.session_state.selected_batches[(selected_machine, date)]
+                already_selected = {batch: percent for batch, percent in selected_batches_for_date}
                 machine_batches_filtered = machine_batches[~machine_batches["display_name"].isin(already_selected)]
 
                 # Calculate allowed batches based on remaining progress
@@ -86,26 +90,34 @@ def schedule_machine(machine_id):
                     st.warning("No batches are available for selection based on progress remaining.")
                     continue
                 
-                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", list(allowed_batches.keys()), key=f"batch_{date}_{machine_id}")
+                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", list(allowed_batches.keys()), default=list(already_selected.keys()), key=f"batch_{date}_{machine_id}")
 
                 percent_selection = []
                 for batch in batch_selection:
                     available_percentage = allowed_batches[batch]
-                    percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})", 0, available_percentage, step=10, value=available_percentage)
-                    
+
+                    # Get previously saved percent selection
+                    current_selection = already_selected.get(batch, 0)
+                    percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})", 0, available_percentage, step=10, value=current_selection)
+
+                    # Append to percent selection
                     percent_selection.append(percent)
 
-                    # Allocate the selected percentage and update total allocated
-                    new_allocation = st.session_state.total_allocated[selected_machine][batch] + percent
+                    # Update allocations
+                    total_allocation = st.session_state.total_allocated[selected_machine][batch] + percent - current_selection
 
-                    # Make sure we do not exceed 100%
-                    if new_allocation > 100:
-                        st.warning(f"Allocation for {batch} exceeds 100%. Please select a lower percentage.")
+                    if total_allocation > 100:
+                        st.warning(f"Total allocation for {batch} exceeds 100%. Please select a lower percentage.")
+                        percent_selection.pop()  # Discard last invalid entry
                     else:
-                        st.session_state.total_allocated[selected_machine][batch] = new_allocation
-                        # Deduct from the remaining progress
-                        st.session_state.progress_remaining[selected_machine][batch] = max(0, st.session_state.progress_remaining[selected_machine][batch] - percent)
+                        # Update total allocation and progress remaining
+                        st.session_state.total_allocated[selected_machine][batch] = total_allocation
+                        st.session_state.progress_remaining[selected_machine][batch] = max(0, st.session_state.progress_remaining[selected_machine][batch] - (percent - current_selection))
 
+                # Store selected batches with their corresponding percentages
+                st.session_state.selected_batches[(selected_machine, date)] = {batch: percent for batch, percent in zip(batch_selection, percent_selection)}
+
+                # Total utilization calculation
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
                 
@@ -126,12 +138,6 @@ def schedule_machine(machine_id):
                     schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
 
         st.session_state.schedule_data[selected_machine] = schedule_df
-        
-        # Update selected batches
-        for batch in batch_selection:
-            if (selected_machine, date) not in selected_batches:
-                selected_batches[(selected_machine, date)] = []
-            selected_batches[(selected_machine, date)].append(batch)
 
 # Initial Scheduling
 for i in range(len(st.session_state.machines_scheduled) + 1):
@@ -156,23 +162,4 @@ if st.session_state.schedule_data:
 # Save Button
 if st.button("Save Schedule"):
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    for machine, df in st.session_state.schedule_data.items():
-        for date in date_range.strftime("%Y-%m-%d"):
-            shift = df.loc["Shift", date]
-            batch_info = df.loc["Batch", date]
-            utilization = df.loc["Utilization", date]
-            downtime = df.loc["Downtime", date] if "Downtime" in df.index else ""
-
-            query = """
-            INSERT INTO plan_instance (machine, date, shift, batch_info, utilization, downtime)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT (machine, date) DO UPDATE 
-            SET shift = EXCLUDED.shift, batch_info = EXCLUDED.batch_info, utilization = EXCLUDED.utilization, downtime = EXCLUDED.downtime
-            """
-            cursor.execute(query, (machine, date, shift, batch_info, utilization, downtime))
-
-    conn.commit()
-    conn.close()
-    st.success("Schedule saved successfully!")
+    cursor = conn
