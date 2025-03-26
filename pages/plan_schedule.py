@@ -81,6 +81,7 @@ def schedule_machine(machine_id):
                 batch for batch in machine_batches["display_name"].tolist()
                 if st.session_state.batch_percentages.get(batch, 0) > 0
             ]
+            print("Available batches:", available_batches)
 
             batch_selection = st.multiselect(
                 f"Batch ({date.strftime('%Y-%m-%d')})", available_batches, key=f"batch_{date}_{machine_id}"
@@ -106,59 +107,4 @@ def schedule_machine(machine_id):
                 if not batch_data.empty:
                     total_utilization += (batch_data.values[0] * percent / 100)
                 else:
-                    st.warning(f"Batch {batch} not found for machine {selected_machine}")
-
-            utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
-
-            # Store schedule before modifying batch percentages
-            formatted_batches = "<br>".join([
-                f"{batch} - <span style='color:green;'>{percent}%</span>"
-                for batch, percent in zip(batch_selection, percent_selection)
-            ])
-
-            schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
-            schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
-            schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
-
-            # Update batch percentages after saving schedule
-            for batch, percent in zip(batch_selection, percent_selection):
-                st.session_state.batch_percentages[batch] -= percent
-
-            # Remove fully scheduled batches only after saving schedule
-            st.session_state.batch_percentages = {
-                batch: percent for batch, percent in st.session_state.batch_percentages.items() if percent > 0
-            }
-
-            # Show downtime button
-            if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
-                if (selected_machine, date) not in st.session_state.downtime_data:
-                    st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
-
-            # Show downtime inputs
-            if (selected_machine, date) in st.session_state.downtime_data:
-                dt_type = st.selectbox("Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}")
-                dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
-                st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
-                schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
-
-            # Update schedule data
-            st.session_state.schedule_data[selected_machine] = schedule_df
-
-    # Update schedule data
-    st.session_state.schedule_data[selected_machine] = schedule_df
-
-# Schedule Machines
-for i in range(len(st.session_state.machines_scheduled) + 1):
-    schedule_machine(i)
-
-if st.button("Add Another Machine"):
-    st.session_state.machines_scheduled.append(f"machine_{len(st.session_state.machines_scheduled) + 1}")
-
-# Display Schedule
-st.write("### Consolidated Schedule")
-for machine, df in st.session_state.schedule_data.items():
-    st.markdown(df.to_html(escape=False), unsafe_allow_html=True)
-
-# Save Button
-if st.button("Save Schedule"):
-    st.success("Schedule saved successfully!")
+                    st.warning(f"Batch {
