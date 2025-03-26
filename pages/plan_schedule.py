@@ -74,9 +74,13 @@ def schedule_machine(machine_id):
                 already_selected = selected_batches.get((selected_machine, date), [])
                 machine_batches_filtered = machine_batches[~machine_batches["display_name"].isin(already_selected)]
 
-                # Dynamically set the available batch selections based on remaining progress
-                allowed_batches = {batch: progress for batch, progress in st.session_state.progress_remaining[selected_machine].items() if progress > 0}
-                
+                # Calculate allowed batches based on remaining progress,
+                # treating batches with progress 0 as fully available (100%)
+                allowed_batches = {}
+                for batch in st.session_state.progress_remaining[selected_machine]:
+                    progress = st.session_state.progress_remaining[selected_machine][batch]
+                    allowed_batches[batch] = progress if progress > 0 else 100  # Treats 0 as 100 available
+
                 if not allowed_batches:
                     st.warning("No batches are available for selection based on progress remaining.")
                     continue
@@ -88,8 +92,13 @@ def schedule_machine(machine_id):
                     available_percentage = allowed_batches[batch]
                     percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})", 0, available_percentage, step=10, value=available_percentage)
                     percent_selection.append(percent)
-                    # Deduct from total progress remaining
-                    st.session_state.progress_remaining[selected_machine][batch] -= percent
+
+                    # Deduct from total progress remaining, treating allocation for progress 0 as 100% being selected
+                    if st.session_state.progress_remaining[selected_machine][batch] == 0:
+                        # If already selected as 100%, it remains 0
+                        st.session_state.progress_remaining[selected_machine][batch] = 0
+                    else:
+                        st.session_state.progress_remaining[selected_machine][batch] -= percent
 
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
