@@ -8,6 +8,7 @@ SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 15}
 
 # Load Machines
 def load_machines():
+    """Load machines from database"""
     conn = get_db_connection()
     query = "SELECT name FROM machines ORDER BY name"
     machines = pd.read_sql(query, conn)
@@ -16,6 +17,7 @@ def load_machines():
 
 # Load Unscheduled Batches
 def load_unscheduled_batches():
+    """Load unscheduled batches from database"""
     conn = get_db_connection()
     query = """
     SELECT id, product, batch_number, machine, time, CAST(progress AS FLOAT) AS progress
@@ -57,6 +59,7 @@ if "batch_percentages" not in st.session_state:
 
 # Function to schedule machines
 def schedule_machine(machine_id):
+    """Schedule machine"""
     machines = load_machines()
     selected_machine = st.selectbox(f"Select Machine {machine_id+1}", machines, key=f"machine_{machine_id}")
 
@@ -117,21 +120,21 @@ def schedule_machine(machine_id):
             schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
             schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
 
-            # ✅ Update batch percentages **after** saving schedule
+            # Update batch percentages after saving schedule
             for batch, percent in zip(batch_selection, percent_selection):
                 st.session_state.batch_percentages[batch] -= percent
 
-            # ✅ Remove fully scheduled batches only after saving schedule
+            # Remove fully scheduled batches only after saving schedule
             st.session_state.batch_percentages = {
                 batch: percent for batch, percent in st.session_state.batch_percentages.items() if percent > 0
             }
 
-            # ✅ Show downtime button
+            # Show downtime button
             if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
                 if (selected_machine, date) not in st.session_state.downtime_data:
                     st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
 
-            # ✅ Show downtime inputs
+            # Show downtime inputs
             if (selected_machine, date) in st.session_state.downtime_data:
                 dt_type = st.selectbox("Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}")
                 dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
