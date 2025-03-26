@@ -14,15 +14,19 @@ def load_machines():
     conn.close()
     return machines["name"].tolist()
 
-# Load Unscheduled Batches
 def load_unscheduled_batches():
     conn = get_db_connection()
-    query = "SELECT id, product, batch_number, machine, time FROM production_plan WHERE schedule = FALSE"
+    query = """
+    SELECT id, product, batch_number, machine, time, progress
+    FROM production_plan 
+    WHERE schedule = FALSE
+    """
     batches = pd.read_sql(query, conn)
     conn.close()
+    
     batches["display_name"] = batches["product"] + " - " + batches["batch_number"]
+    batches["remaining_percentage"] = 100 - batches["progress"]  # Calculate remaining %
     return batches
-
 # UI
 st.title("Machine Scheduling")
 
@@ -39,6 +43,10 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.machines_scheduled = []
     st.session_state.schedule_data = {}
     st.session_state.downtime_data = {}
+if "batch_percentages" not in st.session_state:
+    st.session_state.batch_percentages = {
+        row["display_name"]: row["remaining_percentage"] for _, row in st.session_state.unscheduled_batches.iterrows()
+    }
 
 def schedule_machine(machine_id):
     machines = load_machines()
@@ -54,11 +62,22 @@ def schedule_machine(machine_id):
         for date in date_range:
             with st.expander(f"{date.strftime('%Y-%m-%d')} - {selected_machine}"):
                 shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
-                
-                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}")
-                
-                percent_selection = [st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, value=100, key=f"percent_{batch}_{date}_{machine_id}") for batch in batch_selection]
-                
+                available_batches = [batch for batch, percent in st.session_state.batch_percentages.items() if percent > 0]
+
+                batch_selection = st.multiselect(
+                    f"Batch ({date.strftime('%Y-%m-%d')})", available_batches, key=f"batch_{date}_{machine_id}"
+                )              
+                percent_selection = []
+                for batch in batch_selection:
+                    max_percent = st.session_state.batch_percentages[batch]  # Get remaining %
+                    percent = st.number_input(
+                        f"% of {batch} ({date.strftime('%Y-%m-%d')})", 
+                        min_value=0, max_value=max_percent, step=10, value=max_percent, key=f"percent_{batch}_{date}_{machine_id}"
+                    )
+                    percent_selection.append(percent)
+                        for batch, percent in zip(batch_selection, percent_selection):
+                            st.session_state.batch_percentages[batch] -= percent  # Deduct assigned %
+                            st.session_state.batch_percentages = {batch: percent for batch, percent in st.session_state.batch_percentages.items() if percent > 0}
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
                 utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
                 
