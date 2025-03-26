@@ -35,43 +35,51 @@ with col2:
 
 date_range = pd.date_range(start=start_date, end=end_date)
 
-# Initialize session state variables
 if "machines_scheduled" not in st.session_state:
     st.session_state.machines_scheduled = []
-if "schedule_data" not in st.session_state:
     st.session_state.schedule_data = {}
-if "selected_batches_df" not in st.session_state:
-    st.session_state.selected_batches_df = pd.DataFrame(columns=["product", "batch_number", "machine", "time"])
-if "schedule_df" not in st.session_state:
-    st.session_state.schedule_df = pd.DataFrame(columns=["Machine", "Date", "Shift", "Batch", "% of Batch", "Utilization"])
+    st.session_state.downtime_data = {}
 
 def schedule_machine(machine_id):
     machines = load_machines()
     selected_machine = st.selectbox(f"Select Machine {machine_id+1}", machines, key=f"machine_{machine_id}")
-
-    # Load available batches and filter out selected ones
+    
     batches = load_unscheduled_batches()
-    available_batches_df = batches[batches["machine"] == selected_machine]
-    available_batches_df = available_batches_df[~available_batches_df["batch_number"].isin(st.session_state.selected_batches_df["batch_number"])]
-
-    if not available_batches_df.empty:
+    machine_batches = batches[batches["machine"] == selected_machine]
+    
+    if not machine_batches.empty:
         st.write(f"### Schedule for {selected_machine}")
-        temp_schedule = pd.DataFrame(index=machines, columns=date_range.strftime("%Y-%m-%d"))
-
+        schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization", "Downtime"], columns=date_range.strftime("%Y-%m-%d"))
+        
         for date in date_range:
             with st.expander(f"{date.strftime('%Y-%m-%d')} - {selected_machine}"):
                 shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
-
-                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", available_batches_df["display_name"].tolist(), key=f"batch_{date}_{machine_id}")
-
+                
+                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", machine_batches["display_name"].tolist(), key=f"batch_{date}_{machine_id}")
+                
                 percent_selection = [st.number_input(f"% of {batch} ({date.strftime('%Y-%m-%d')})", 0, 100, step=10, value=100, key=f"percent_{batch}_{date}_{machine_id}") for batch in batch_selection]
+                
+                total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
+                utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
+                
+                formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in zip(batch_selection, percent_selection)])
+                schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
+                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
+                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
+                
+                # Downtime Selection
+                if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
+                    if (selected_machine, date) not in st.session_state.downtime_data:
+                        st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
 
-                temp_schedule.loc[selected_machine, date.strftime("%Y-%m-%d")] = " | ".join(batch_selection)
-
-        st.session_state.schedule_data[selected_machine] = temp_schedule
-        st.write("### Planned Schedule")
-        st.dataframe(temp_schedule)
-
+                if (selected_machine, date) in st.session_state.downtime_data:
+                    dt_type = st.selectbox("Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}")
+                    dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
+                    st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
+                    schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
+        
+        st.session_state.schedule_data[selected_machine] = schedule_df
+        
 # Initial Scheduling
 for i in range(len(st.session_state.machines_scheduled) + 1):
     schedule_machine(i)
@@ -79,11 +87,6 @@ for i in range(len(st.session_state.machines_scheduled) + 1):
 if st.button("Add Another Machine"):
     st.session_state.machines_scheduled.append(f"machine_{len(st.session_state.machines_scheduled) + 1}")
 
-# Display All Scheduled Machines in a Matrix Format
-if st.session_state.schedule_data:
-    st.write("### Consolidated Schedule")
-    consolidated_df = pd.concat(st.session_state.schedule_data.values(), axis=1)
-    st.dataframe(consolidated_df)
 # Display All Scheduled Machines in a Single Table
 if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
@@ -92,35 +95,31 @@ if st.session_state.schedule_data:
     for machine, df in st.session_state.schedule_data.items():
         row = {"Machine": machine}
         for date in date_range.strftime("%Y-%m-%d"):
-            row[date] = (
-                f"{df.loc['Shift', date] if 'Shift' in df.index else ''}<br>"
-                f"{df.loc['Batch', date] if 'Batch' in df.index else ''}<br>"
-                f"{df.loc['Utilization', date] if 'Utilization' in df.index else ''}<br>"
-                f"{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
-            )
+            row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['Utilization', date]}<br>{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
         consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
     
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-if st.button("Save Full Schedule"):
+# Save Button
+if st.button("Save Schedule"):
     conn = get_db_connection()
-    cur = conn.cursor()
+    cursor = conn.cursor()
     
     for machine, df in st.session_state.schedule_data.items():
-        for date in date_range:
-            # Check if the date exists in the DataFrame
-            if date.strftime("%Y-%m-%d") in df.columns:
-                shift = df.at[machine, date.strftime("%Y-%m-%d")] if machine in df.index else None
-                cur.execute(
-                    """
-                    INSERT INTO plan_instance (machine, schedule_date, shift, batch_number, percentage, utilization) 
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    """,
-                    (machine, date, shift, None, None, None)
-                )
-    conn.commit()
-    cur.close()
-    conn.close()
+        for date in date_range.strftime("%Y-%m-%d"):
+            shift = df.loc["Shift", date]
+            batch_info = df.loc["Batch", date]
+            utilization = df.loc["Utilization", date]
+            downtime = df.loc["Downtime", date] if "Downtime" in df.index else ""
+            
+            query = """
+            INSERT INTO plan_instance (machine, date, shift, batch_info, utilization, downtime)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (machine, date) DO UPDATE 
+            SET shift = EXCLUDED.shift, batch_info = EXCLUDED.batch_info, utilization = EXCLUDED.utilization, downtime = EXCLUDED.downtime
+            """
+            cursor.execute(query, (machine, date, shift, batch_info, utilization, downtime))
     
-    st.success("Full schedule saved successfully!")  # Ensure proper indentation
-
+    conn.commit()
+    conn.close()
+    st.success("Schedule saved successfully!")
