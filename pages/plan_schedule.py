@@ -53,10 +53,11 @@ if "batch_percentages" not in st.session_state:
 def schedule_machine(machine_id):
     machines = load_machines()
     selected_machine = st.selectbox(f"Select Machine {machine_id+1}", machines, key=f"machine_{machine_id}")
-    
-    batches = load_unscheduled_batches()
+
+# Filter only batches that belong to the selected machine
+    batches = st.session_state.unscheduled_batches  # Use session state to avoid reloading
     machine_batches = batches[batches["machine"] == selected_machine]
-    
+
     if not machine_batches.empty:
         st.write(f"### Schedule for {selected_machine}")
         schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization", "Downtime"], columns=date_range.strftime("%Y-%m-%d"))
