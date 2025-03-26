@@ -42,7 +42,7 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.downtime_data = {}
     st.session_state.progress_remaining = {}
     st.session_state.total_allocated = {}
-    st.session_state.selected_batches = {}  # Track selected batches for each date and their percentages
+    st.session_state.selected_batches = {}
 
 # Track already selected batches
 def schedule_machine(machine_id):
@@ -59,7 +59,7 @@ def schedule_machine(machine_id):
 
     machine_batches = batches[batches["machine"] == selected_machine]
 
-    # Initialize progress_remaining and total_allocated for the selected machine
+    # Initialize session state for the selected machine
     if selected_machine not in st.session_state.progress_remaining:
         st.session_state.progress_remaining[selected_machine] = {batch: progress for batch, progress in zip(machine_batches["display_name"], machine_batches["progress"])}
         st.session_state.total_allocated[selected_machine] = {batch: 0 for batch in machine_batches["display_name"]}
@@ -72,14 +72,14 @@ def schedule_machine(machine_id):
             shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
 
             # Initialize selected_batches for the date if not already present
-            if (selected_machine, date) not in st.session_state.selected_batches:
+            if (selected_machine, date) not in st.session_state.selected_batches:                
                 st.session_state.selected_batches[(selected_machine, date)] = {}
 
             selected_batches_for_date = st.session_state.selected_batches[(selected_machine, date)]
             already_selected = {batch: percent for batch, percent in selected_batches_for_date.items()}
             machine_batches_filtered = machine_batches[~machine_batches["display_name"].isin(already_selected)]
 
-            # Calculate allowed batches based on remaining progress
+            # Compute allowed batches
             allowed_batches = {}
             for batch in st.session_state.progress_remaining[selected_machine]:
                 if st.session_state.total_allocated[selected_machine][batch] < 100:
@@ -91,10 +91,17 @@ def schedule_machine(machine_id):
 
             # Set default selections for the multiselect
             default_batches = list(selected_batches_for_date.keys())
+            valid_defaults = [batch for batch in default_batches if batch in allowed_batches]  # Ensure valid defaults
+
+            # Debugging: Print allowed batches and defaults for your inspection
+            st.write(f"Allowed Batches: {allowed_batches.keys()}")
+            st.write(f"Default Batches: {valid_defaults}")
+
+            # Create multiselect for batch selection
             batch_selection = st.multiselect(
                 f"Batch ({date.strftime('%Y-%m-%d')})", 
                 list(allowed_batches.keys()), 
-                default=default_batches,  # Allow previously selected batches to persist
+                default=valid_defaults,  # Set previously selected batches if valid
                 key=f"batch_{date}_{machine_id}"
             )
 
@@ -102,28 +109,26 @@ def schedule_machine(machine_id):
             for batch in batch_selection:
                 available_percentage = allowed_batches[batch]
 
-                # Get previously saved percent selection or default to 0
                 current_selection = already_selected.get(batch, 0)
-                percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})", 
+                percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})",
                                            0, available_percentage, step=10, value=current_selection)
 
-                # Update allocations
+                # Update allocations and progress
                 total_allocation = st.session_state.total_allocated[selected_machine][batch] + percent - current_selection
 
                 if total_allocation > 100:
                     st.warning(f"Total allocation for {batch} exceeds 100%. Please select a lower percentage.")
                     continue
 
-                # Update total allocation and progress remaining
                 st.session_state.total_allocated[selected_machine][batch] = total_allocation
                 st.session_state.progress_remaining[selected_machine][batch] = max(0, st.session_state.progress_remaining[selected_machine][batch] - (percent - current_selection))
                 percent_selection[batch] = percent  # Store the percentage selected for this batch
 
-            # Store selected batches with their corresponding percentages for the current date
-            st.session_state.selected_batches[(selected_machine, date)].update(percent_selection)
+            st.session_state.selected_batches[(selected_machine, date)].update(percent_selection)  # Store selected batches and their percentages
 
             # Total utilization calculation
-            total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in percent_selection.items())
+            total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) 
+                                    for batch, percent in percent_selection.items())
             utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
             
             formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent_selection.get(batch, 0)}%</span>" for batch in batch_selection])
