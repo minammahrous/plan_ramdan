@@ -42,7 +42,7 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.downtime_data = {}
     st.session_state.progress_remaining = {}
     st.session_state.total_allocated = {}
-    st.session_state.selected_batches = {}  # Track selected batches for each date and their percentages
+    st.session_state.selected_batches = {}  # Store selected batches with their percentages
 
 # Track already selected batches
 def schedule_machine(machine_id):
@@ -89,11 +89,13 @@ def schedule_machine(machine_id):
                 if not allowed_batches:
                     st.warning("No batches are available for selection based on progress remaining.")
                     continue
-                
+
+                # Ensure the default values for the multiselect are valid
+                default_batches = [batch for batch in already_selected.keys() if batch in allowed_batches]
                 batch_selection = st.multiselect(
                     f"Batch ({date.strftime('%Y-%m-%d')})", 
                     list(allowed_batches.keys()), 
-                    default=[batch for batch in already_selected.keys() if batch in allowed_batches],  # Ensure defaults are valid
+                    default=default_batches,  # Set previous selections if they exist in allowed batches
                     key=f"batch_{date}_{machine_id}"
                 )
 
