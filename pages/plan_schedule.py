@@ -92,7 +92,12 @@ if st.session_state.schedule_data:
     for machine, df in st.session_state.schedule_data.items():
         row = {"Machine": machine}
         for date in date_range.strftime("%Y-%m-%d"):
-            row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['Utilization', date]}<br>{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
+        row[date] = (
+            f"{df.loc['Shift', date] if 'Shift' in df.index else ''}<br>"
+            f"{df.loc['Batch', date] if 'Batch' in df.index else ''}<br>"
+            f"{df.loc['Utilization', date] if 'Utilization' in df.index else ''}<br>"
+            f"{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
+        )        
         consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
     
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
