@@ -75,7 +75,7 @@ def schedule_machine(machine_id):
                         min_value=0, max_value=max_percent, step=10, value=max_percent, key=f"percent_{batch}_{date}_{machine_id}"
                     )
                     percent_selection.append(percent)
-                        for batch, percent in zip(batch_selection, percent_selection):
+                    for batch, percent in zip(batch_selection, percent_selection):
                             st.session_state.batch_percentages[batch] -= percent  # Deduct assigned %
                             st.session_state.batch_percentages = {batch: percent for batch, percent in st.session_state.batch_percentages.items() if percent > 0}
                 total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
