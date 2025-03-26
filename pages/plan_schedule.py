@@ -90,7 +90,12 @@ def schedule_machine(machine_id):
                     st.warning("No batches are available for selection based on progress remaining.")
                     continue
                 
-                batch_selection = st.multiselect(f"Batch ({date.strftime('%Y-%m-%d')})", list(allowed_batches.keys()), default=list(already_selected.keys()), key=f"batch_{date}_{machine_id}")
+                batch_selection = st.multiselect(
+                    f"Batch ({date.strftime('%Y-%m-%d')})", 
+                    list(allowed_batches.keys()), 
+                    default=[batch for batch in already_selected.keys() if batch in allowed_batches],  # Ensure defaults are valid
+                    key=f"batch_{date}_{machine_id}"
+                )
 
                 percent_selection = []
                 for batch in batch_selection:
