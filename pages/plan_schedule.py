@@ -42,7 +42,7 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.downtime_data = {}
     st.session_state.progress_remaining = {}
     st.session_state.total_allocated = {}
-    st.session_state.selected_batches = {}  # Store selected batches with their percentages
+    st.session_state.selected_batches = {}  # Track selected batches for each date and their percentages
 
 # Track already selected batches
 def schedule_machine(machine_id):
@@ -64,91 +64,85 @@ def schedule_machine(machine_id):
         st.session_state.progress_remaining[selected_machine] = {batch: progress for batch, progress in zip(machine_batches["display_name"], machine_batches["progress"])}
         st.session_state.total_allocated[selected_machine] = {batch: 0 for batch in machine_batches["display_name"]}
 
-    if not machine_batches.empty:
-        st.write(f"### Schedule for {selected_machine}")
-        schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization", "Downtime"], columns=date_range.strftime("%Y-%m-%d"))
+    st.write(f"### Schedule for {selected_machine}")
+    schedule_df = pd.DataFrame(index=["Shift", "Batch", "% of Batch", "Utilization", "Downtime"], columns=date_range.strftime("%Y-%m-%d"))
 
-        for date in date_range:
-            with st.expander(f"{date.strftime('%Y-%m-%d')} - {selected_machine}"):
-                shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
+    for date in date_range:
+        with st.expander(f"{date.strftime('%Y-%m-%d')} - {selected_machine}"):
+            shift = st.selectbox(f"Shift ({date.strftime('%Y-%m-%d')})", list(SHIFT_DURATIONS.keys()), key=f"shift_{date}_{machine_id}")
 
-                # Restore previously selected batches for this date
-                if (selected_machine, date) not in st.session_state.selected_batches:
-                    st.session_state.selected_batches[(selected_machine, date)] = {}
+            # Initialize selected_batches for the date if not already present
+            if (selected_machine, date) not in st.session_state.selected_batches:
+                st.session_state.selected_batches[(selected_machine, date)] = {}
 
-                selected_batches_for_date = st.session_state.selected_batches[(selected_machine, date)]
-                already_selected = {batch: percent for batch, percent in selected_batches_for_date.items()}
-                machine_batches_filtered = machine_batches[~machine_batches["display_name"].isin(already_selected)]
+            selected_batches_for_date = st.session_state.selected_batches[(selected_machine, date)]
+            already_selected = {batch: percent for batch, percent in selected_batches_for_date.items()}
+            machine_batches_filtered = machine_batches[~machine_batches["display_name"].isin(already_selected)]
 
-                # Calculate allowed batches based on remaining progress
-                allowed_batches = {}
-                for batch in st.session_state.progress_remaining[selected_machine]:
-                    if st.session_state.total_allocated[selected_machine][batch] < 100:
-                        allowed_batches[batch] = 100 - st.session_state.total_allocated[selected_machine][batch]
+            # Calculate allowed batches based on remaining progress
+            allowed_batches = {}
+            for batch in st.session_state.progress_remaining[selected_machine]:
+                if st.session_state.total_allocated[selected_machine][batch] < 100:
+                    allowed_batches[batch] = 100 - st.session_state.total_allocated[selected_machine][batch]
 
-                if not allowed_batches:
-                    st.warning("No batches are available for selection based on progress remaining.")
+            if not allowed_batches:
+                st.warning("No batches are available for selection based on progress remaining.")
+                continue
+
+            # Set default selections for the multiselect
+            default_batches = list(selected_batches_for_date.keys())
+            batch_selection = st.multiselect(
+                f"Batch ({date.strftime('%Y-%m-%d')})", 
+                list(allowed_batches.keys()), 
+                default=default_batches,  # Allow previously selected batches to persist
+                key=f"batch_{date}_{machine_id}"
+            )
+
+            percent_selection = {}
+            for batch in batch_selection:
+                available_percentage = allowed_batches[batch]
+
+                # Get previously saved percent selection or default to 0
+                current_selection = already_selected.get(batch, 0)
+                percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})", 
+                                           0, available_percentage, step=10, value=current_selection)
+
+                # Update allocations
+                total_allocation = st.session_state.total_allocated[selected_machine][batch] + percent - current_selection
+
+                if total_allocation > 100:
+                    st.warning(f"Total allocation for {batch} exceeds 100%. Please select a lower percentage.")
                     continue
 
-                # Ensure the default values for the multiselect are valid
-                default_batches = [batch for batch in already_selected.keys() if batch in allowed_batches]
-                batch_selection = st.multiselect(
-                    f"Batch ({date.strftime('%Y-%m-%d')})", 
-                    list(allowed_batches.keys()), 
-                    default=default_batches,  # Set previous selections if they exist in allowed batches
-                    key=f"batch_{date}_{machine_id}"
-                )
+                # Update total allocation and progress remaining
+                st.session_state.total_allocated[selected_machine][batch] = total_allocation
+                st.session_state.progress_remaining[selected_machine][batch] = max(0, st.session_state.progress_remaining[selected_machine][batch] - (percent - current_selection))
+                percent_selection[batch] = percent  # Store the percentage selected for this batch
 
-                percent_selection = []
-                for batch in batch_selection:
-                    available_percentage = allowed_batches[batch]
+            # Store selected batches with their corresponding percentages for the current date
+            st.session_state.selected_batches[(selected_machine, date)].update(percent_selection)
 
-                    # Get previously saved percent selection or default to 0
-                    current_selection = already_selected.get(batch, 0)
-                    percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})", 0, available_percentage, step=10, value=current_selection)
+            # Total utilization calculation
+            total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in percent_selection.items())
+            utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
+            
+            formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent_selection.get(batch, 0)}%</span>" for batch in batch_selection])
+            schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
+            schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
+            schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
 
-                    # Append to percent selection
-                    percent_selection.append(percent)
+            # Downtime Selection
+            if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
+                if (selected_machine, date) not in st.session_state.downtime_data:
+                    st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
 
-                    # Update allocations
-                    total_allocation = st.session_state.total_allocated[selected_machine][batch] + percent - current_selection
+            if (selected_machine, date) in st.session_state.downtime_data:
+                dt_type = st.selectbox("Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}")
+                dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
+                st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
+                schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
 
-                    if total_allocation > 100:
-                        st.warning(f"Total allocation for {batch} exceeds 100%. Please select a lower percentage.")
-                        percent_selection.pop()  # Discard last invalid entry
-                        continue
-                    
-                    # Update total allocation and progress remaining
-                    st.session_state.total_allocated[selected_machine][batch] = total_allocation
-                    
-                    # Update progress remaining based on the actual percentage selected
-                    st.session_state.progress_remaining[selected_machine][batch] = max(0, st.session_state.progress_remaining[selected_machine][batch] - (percent - current_selection))
-
-                # Store selected batches with their corresponding percentages for the current date
-                for batch, percent in zip(batch_selection, percent_selection):
-                    st.session_state.selected_batches[(selected_machine, date)][batch] = percent
-
-                # Total utilization calculation
-                total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100) for batch, percent in zip(batch_selection, percent_selection))
-                utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
-                
-                formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent}%</span>" for batch, percent in zip(batch_selection, percent_selection)])
-                schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
-                schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
-                schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
-
-                # Downtime Selection
-                if st.button(f"+DT ({date.strftime('%Y-%m-%d')}) - {selected_machine}", key=f"dt_button_{date}_{machine_id}"):
-                    if (selected_machine, date) not in st.session_state.downtime_data:
-                        st.session_state.downtime_data[(selected_machine, date)] = {"type": None, "hours": 0}
-
-                if (selected_machine, date) in st.session_state.downtime_data:
-                    dt_type = st.selectbox("Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}")
-                    dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
-                    st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
-                    schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
-
-        st.session_state.schedule_data[selected_machine] = schedule_df
+    st.session_state.schedule_data[selected_machine] = schedule_df
 
 # Initial Scheduling
 for i in range(len(st.session_state.machines_scheduled) + 1):
