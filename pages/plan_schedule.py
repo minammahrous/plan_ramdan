@@ -194,7 +194,10 @@ if st.session_state.schedule_data:
     consolidated_df = pd.DataFrame(columns=["Machine"] + date_range.strftime("%Y-%m-%d").tolist())
 
     # Filter out machines with no scheduled data
-    machines_with_data = [machine for machine, df in st.session_state.schedule_data.items() if any(df.loc["Batch", date] != "" for date in date_range.strftime("%Y-%m-%d"))]
+    machines_with_data = [machine for machine, df in st.session_state.schedule_data.items() if any(
+        df.loc["Batch", date] != "" or df.loc["Shift", date] != "" or df.loc["Utilization", date] != "" or df.loc["Downtime", date] != ""
+        for date in date_range.strftime("%Y-%m-%d")
+    )]
 
     for machine in machines_with_data:
         df = st.session_state.schedule_data[machine]
