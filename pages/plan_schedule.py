@@ -193,14 +193,18 @@ if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
     consolidated_df = pd.DataFrame(columns=["Machine"] + date_range.strftime("%Y-%m-%d").tolist())
 
-    # Filter out machines with no scheduled data
-    machines_with_data = [machine for machine, df in st.session_state.schedule_data.items() if any(
-        df.loc["Batch", date] != "" or df.loc["Shift", date] != "" or df.loc["Utilization", date] != "" or df.loc["Downtime", date] != ""
-        for date in date_range.strftime("%Y-%m-%d")
-    )]
+    # Identify machines with no scheduled data
+    machines_to_remove = []
+    for machine, df in st.session_state.schedule_data.items():
+        if not any(df.loc["Batch", date] != "" or df.loc["Shift", date] != "" or df.loc["Utilization", date] != "" or df.loc["Downtime", date] != "" for date in date_range.strftime("%Y-%m-%d")):
+            machines_to_remove.append(machine)
 
-    for machine in machines_with_data:
-        df = st.session_state.schedule_data[machine]
+    # Remove machines with no scheduled data from st.session_state.schedule_data
+    for machine in machines_to_remove:
+        del st.session_state.schedule_data[machine]
+
+    # Re-iterate through the updated st.session_state.schedule_data
+    for machine, df in st.session_state.schedule_data.items():
         row = {"Machine": machine}  # Initialize row for the machine
         for date in date_range.strftime("%Y-%m-%d"):
             batch_data = df.loc["Batch", date] if "Batch" in df.index else ""
