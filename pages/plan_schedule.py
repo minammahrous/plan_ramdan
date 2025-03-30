@@ -150,6 +150,9 @@ def schedule_machine(machine_id):
             if (selected_machine, date) in st.session_state.downtime_data:
                 dt_type = st.selectbox("Select Downtime Type", ["Cleaning", "Preventive Maintenance", "Calibration"], key=f"dt_type_{date}_{machine_id}")
                 dt_hours = st.number_input("Downtime Hours", min_value=0.0, step=0.5, key=f"dt_hours_{date}_{machine_id}")
+                if dt_hours >24:
+                    dt_hours=24;
+                    st.warning("Max downtime is 24 Hours")
                 st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
                 schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
 
