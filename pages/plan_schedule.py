@@ -45,8 +45,10 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.selected_batches = {}
 if "selected_batches" not in st.session_state:
     st.session_state.selected_batches = {}
+
 if "downtimes" not in st.session_state:
-    st.session_state.downtimes = {}  # Initialize empty dictionary
+    st.session_state.downtimes = {}
+
 if (
     (selected_machine, date) in st.session_state.selected_batches and st.session_state.selected_batches[(selected_machine, date)]
 ) or (
