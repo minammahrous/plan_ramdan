@@ -141,6 +141,12 @@ def schedule_machine(machine_id):
                 st.session_state.progress_remaining[selected_machine][batch] = max(0, st.session_state.progress_remaining[selected_machine][batch] - (percent - current_selection))
                 percent_selection[batch] = percent  # Store the percentage selected for this batch
 
+            # Update total_allocated and progress_remaining for removed batches
+            for batch in already_selected:
+                if batch not in batch_selection:
+                    st.session_state.total_allocated[selected_machine][batch] -= already_selected[batch]
+                    st.session_state.progress_remaining[selected_machine][batch] += already_selected[batch]
+
             st.session_state.selected_batches[(selected_machine, date)].update(percent_selection)  # Store selected batches and their percentages
 
             # Total utilization calculation
