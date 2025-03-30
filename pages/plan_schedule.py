@@ -48,7 +48,8 @@ if "selected_batches" not in st.session_state:
 
 if "downtimes" not in st.session_state:
     st.session_state.downtimes = {}
-
+st.write(f"selected_machine: {selected_machine if 'selected_machine' in locals() else 'NOT DEFINED'}")
+st.write(f"date: {date if 'date' in locals() else 'NOT DEFINED'}")
 if (
     (selected_machine, date) in st.session_state.selected_batches and st.session_state.selected_batches[(selected_machine, date)]
 ) or (
