@@ -43,7 +43,8 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.progress_remaining = {}
     st.session_state.total_allocated = {}
     st.session_state.selected_batches = {}
-
+if "selected_batches" not in st.session_state:
+    st.session_state.selected_batches = {}
 # Track already selected batches
 def schedule_machine(machine_id):
     machines = load_machines()
