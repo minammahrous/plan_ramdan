@@ -87,14 +87,8 @@ def schedule_machine(machine_id):
             if (selected_machine, date) not in st.session_state.selected_batches:
                 st.session_state.selected_batches[(selected_machine, date)] = {}
 
-            # Clear the dictionary and re-populate it with current selections
-            st.session_state.selected_batches[(selected_machine, date)].clear()
-
             selected_batches_for_date = st.session_state.selected_batches[(selected_machine, date)]
-            already_selected = {} # reset already selected.
-            for key, value in st.session_state.selected_batches[(selected_machine,date)].items():
-                already_selected[key] = value
-
+            already_selected = {batch: percent for batch, percent in selected_batches_for_date.items()}
             machine_batches_filtered = machine_batches[~machine_batches["display_name"].isin(already_selected)]
 
             # Compute allowed batches
@@ -129,24 +123,29 @@ def schedule_machine(machine_id):
                 # Debugging: Print values before number_input
                 st.write(f"Batch: {batch}, Available Percentage: {available_percentage}, Current Selection: {current_selection}, total allocated {st.session_state.total_allocated[selected_machine][batch]}")
 
-                try:
-                    percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})",
-                                                0, available_percentage, step=10, value=current_selection)
-                except streamlit.errors.StreamlitValueAboveMaxError as e:
-                    st.error(f"StreamlitValueAboveMaxError: {e}")
-                    st.error(f"Batch: {batch}, Available Percentage: {available_percentage}, Current Selection: {current_selection}, total allocated {st.session_state.total_allocated[selected_machine][batch]}")
-                    percent = current_selection # use the current selection to prevent app crashing.
+                percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})",
+                                                0, available_percentage, step=10, value=current_selection, key = f"num_input_{batch}_{date}_{machine_id}")
 
-                # Update allocations and progress
-                total_allocation = st.session_state.total_allocated[selected_machine][batch] + percent - current_selection
+                add_button = st.button(f"Add {batch}", key=f"add_{batch}_{date}_{machine_id}")
+                update_button = st.button(f"Update {batch}", key=f"update_{batch}_{date}_{machine_id}", disabled=batch not in st.session_state.selected_batches[(selected_machine, date)])
+                delete_button = st.button(f"Delete {batch}", key=f"delete_{batch}_{date}_{machine_id}", disabled=batch not in st.session_state.selected_batches[(selected_machine, date)])
 
-                if total_allocation > 100:
-                    st.warning(f"Total allocation for {batch} exceeds 100%. Please select a lower percentage.")
-                    continue
+                if add_button:
+                    st.session_state.selected_batches[(selected_machine, date)][batch] = percent
+                    st.session_state.total_allocated[selected_machine][batch] += percent
+                    st.session_state.progress_remaining[selected_machine][batch] -= percent
 
-                st.session_state.total_allocated[selected_machine][batch] = total_allocation
-                st.session_state.progress_remaining[selected_machine][batch] = max(0, st.session_state.progress_remaining[selected_machine][batch] - (percent - current_selection))
-                percent_selection[batch] = percent  # Store the percentage selected for this batch
+                if update_button:
+                    old_percent = st.session_state.selected_batches[(selected_machine, date)][batch]
+                    st.session_state.total_allocated[selected_machine][batch] += (percent - old_percent)
+                    st.session_state.progress_remaining[selected_machine][batch] -= (percent - old_percent)
+                    st.session_state.selected_batches[(selected_machine, date)][batch] = percent
+
+                if delete_button:
+                    old_percent = st.session_state.selected_batches[(selected_machine, date)][batch]
+                    del st.session_state.selected_batches[(selected_machine, date)][batch]
+                    st.session_state.total_allocated[selected_machine][batch] -= old_percent
+                    st.session_state.progress_remaining[selected_machine][batch] += old_percent
 
             # Update total_allocated and progress_remaining for removed batches
             for batch in already_selected:
@@ -154,14 +153,14 @@ def schedule_machine(machine_id):
                     st.session_state.total_allocated[selected_machine][batch] = max(0, st.session_state.total_allocated[selected_machine][batch] - already_selected[batch])
                     st.session_state.progress_remaining[selected_machine][batch] += already_selected[batch]
 
-            st.session_state.selected_batches[(selected_machine, date)].update(percent_selection)  # Store selected batches and their percentages
+            st.session_state.selected_batches[(selected_machine, date)].update(st.session_state.selected_batches[(selected_machine, date)])  # Store selected batches and their percentages
 
             # Total utilization calculation
             total_utilization = sum((machine_batches.loc[machine_batches["display_name"] == batch, "time"].values[0] * percent / 100)
-                                        for batch, percent in percent_selection.items())
+                                        for batch, percent in st.session_state.selected_batches[(selected_machine, date)].items())
             utilization_percentage = (total_utilization / SHIFT_DURATIONS[shift]) * 100 if SHIFT_DURATIONS[shift] > 0 else 0
 
-            formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{percent_selection.get(batch, 0)}%</span>" for batch in batch_selection])
+            formatted_batches = "<br>".join([f"{batch} - <span style='color:green;'>{st.session_state.selected_batches[(selected_machine, date)].get(batch, 0)}%</span>" for batch in st.session_state.selected_batches[(selected_machine, date)]])
             schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = f"<b style='color:red;'>{shift}</b>"
             schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = formatted_batches
             schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = f"Util= {utilization_percentage:.2f}%"
