@@ -147,6 +147,14 @@ def schedule_machine(machine_id):
                     st.session_state.total_allocated[selected_machine][batch] -= old_percent
                     st.session_state.progress_remaining[selected_machine][batch] += old_percent
 
+                # Check if all batches are removed for this date
+                if not st.session_state.selected_batches[(selected_machine, date)]:
+                    # Clear the schedule_df for this date
+                    schedule_df.loc["Shift", date.strftime("%Y-%m-%d")] = ""
+                    schedule_df.loc["Batch", date.strftime("%Y-%m-%d")] = ""
+                    schedule_df.loc["Utilization", date.strftime("%Y-%m-%d")] = ""
+                    schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = ""
+
             # Update total_allocated and progress_remaining for removed batches
             for batch in already_selected:
                 if batch not in batch_selection:
@@ -179,6 +187,12 @@ def schedule_machine(machine_id):
                 st.session_state.downtime_data[(selected_machine, date)] = {"type": dt_type, "hours": dt_hours}
                 schedule_df.loc["Downtime", date.strftime("%Y-%m-%d")] = f"<span style='color:purple;'>{dt_type} ({dt_hours} hrs)</span>"
 
+    # Check if all dates are cleared for this machine
+    if all(all(schedule_df.loc[row, date] == "" for row in ["Shift", "Batch", "Utilization", "Downtime"]) for date in date_range.strftime("%Y-%m-%d")):
+        # Remove the machine from st.session_state.schedule_data
+        if selected_machine in st.session_state.schedule_data:
+            del st.session_state.schedule_data[selected_machine]
+
     st.session_state.schedule_data[selected_machine] = schedule_df
 
 # Initial Scheduling
@@ -193,17 +207,6 @@ if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
     consolidated_df = pd.DataFrame(columns=["Machine"] + date_range.strftime("%Y-%m-%d").tolist())
 
-    # Identify machines with no scheduled data
-    machines_to_remove = []
-    for machine, df in st.session_state.schedule_data.items():
-        if not any(df.loc["Batch", date] != "" or df.loc["Shift", date] != "" or df.loc["Utilization", date] != "" or df.loc["Downtime", date] != "" for date in date_range.strftime("%Y-%m-%d")):
-            machines_to_remove.append(machine)
-
-    # Remove machines with no scheduled data from st.session_state.schedule_data
-    for machine in machines_to_remove:
-        del st.session_state.schedule_data[machine]
-
-    # Re-iterate through the updated st.session_state.schedule_data
     for machine, df in st.session_state.schedule_data.items():
         row = {"Machine": machine}  # Initialize row for the machine
         for date in date_range.strftime("%Y-%m-%d"):
@@ -216,6 +219,8 @@ if st.session_state.schedule_data:
         consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
 
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+
 # Save Button
 if st.button("Save Schedule"):
     conn = get_db_connection()
