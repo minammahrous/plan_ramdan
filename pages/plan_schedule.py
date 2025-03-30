@@ -45,10 +45,11 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.selected_batches = {}
 if "selected_batches" not in st.session_state:
     st.session_state.selected_batches = {}
+if "downtimes" not in st.session_state:
+    st.session_state.downtimes = {}  # Initialize empty dictionary
 # Ensure only machines with batches or downtime are recorded
-if (selected_machine, date) in st.session_state.selected_batches or (selected_machine, date) in st.session_state.downtimes:
+if (selected_machine, date) in st.session_state.selected_batches or (selected_machine, date) in st.session_state.get("downtimes", {}):
     st.session_state.schedule.append((selected_machine, date))
-
 # Track already selected batches
 def schedule_machine(machine_id):
     machines = load_machines()
