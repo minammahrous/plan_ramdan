@@ -118,6 +118,7 @@ def schedule_machine(machine_id):
                 available_percentage = 100 - st.session_state.total_allocated[selected_machine][batch]
 
                 current_selection = already_selected.get(batch, 0)
+                current_selection = min(current_selection, available_percentage) # ensure current selection is within available percentage
 
                 # Debugging: Print values before number_input
                 st.write(f"Batch: {batch}, Available Percentage: {available_percentage}, Current Selection: {current_selection}, total allocated {st.session_state.total_allocated[selected_machine][batch]}")
