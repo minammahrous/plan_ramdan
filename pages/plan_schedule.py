@@ -54,17 +54,6 @@ if "selected_batches" not in st.session_state:
 if "downtimes" not in st.session_state:
     st.session_state.downtimes = {}
 
-# Run this check only if both selected_machine and date are set
-if selected_machine and date:
-    if (
-        (selected_machine, date) in st.session_state.selected_batches and
-        bool(st.session_state.selected_batches[(selected_machine, date)])
-    ) or (
-        (selected_machine, date) in st.session_state.downtimes and
-        bool(st.session_state.downtimes[(selected_machine, date)])
-    ):
-        st.session_state.schedule.append((selected_machine, date))
-
 # Track already selected batches
 def schedule_machine(machine_id):
     machines = load_machines()
@@ -114,11 +103,6 @@ def schedule_machine(machine_id):
             default_batches = list(selected_batches_for_date.keys())
             valid_defaults = [batch for batch in default_batches if batch in allowed_batches]  # Ensure valid defaults
 
-            # Debugging: Print allowed batches and defaults for your inspection
-            st.write(f"Allowed Batches: {allowed_batches.keys()}")
-            st.write(f"Default Batches: {valid_defaults}")
-
-            # Create multiselect for batch selection
             batch_selection = st.multiselect(
                 f"Batch ({date.strftime('%Y-%m-%d')})",
                 list(allowed_batches.keys()),
@@ -183,10 +167,11 @@ if st.session_state.schedule_data:
     consolidated_df = pd.DataFrame(columns=["Machine"] + date_range.strftime("%Y-%m-%d").tolist())
 
     for machine, df in st.session_state.schedule_data.items():
-        row = {"Machine": machine}
         for date in date_range.strftime("%Y-%m-%d"):
-            row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date]}<br>{df.loc['Utilization', date]}<br>{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
-        consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
+            if "Batch" in df.index and len(df.loc["Batch", date]) > 0 or "Downtime" in df.index and len(df.loc["Downtime", date]) > 0:
+                row = {"Machine": machine}
+                row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date] if 'Batch' in df.index else ''}<br>{df.loc['Utilization', date] if 'Utilization' in df.index else ''}<br>{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
+                consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
 
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -198,8 +183,8 @@ if st.button("Save Schedule"):
     for machine, df in st.session_state.schedule_data.items():
         for date in date_range.strftime("%Y-%m-%d"):
             shift = df.loc["Shift", date]
-            batch_info = df.loc["Batch", date]
-            utilization = df.loc["Utilization", date]
+            batch_info = df.loc["Batch", date] if 'Batch' in df.index else ''
+            utilization = df.loc["Utilization", date] if 'Utilization' in df.index else ''
             downtime = df.loc["Downtime", date] if "Downtime" in df.index else ""
 
             query = """
