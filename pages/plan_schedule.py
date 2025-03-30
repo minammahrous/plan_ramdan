@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from db import get_db_connection  # Import database connection function
+import streamlit.errors # explicit import of streamlit errors.
 
 # Shift durations in hours
 SHIFT_DURATIONS = {"LD": 11, "NS": 22, "ND": 9, "ELD": 15}
