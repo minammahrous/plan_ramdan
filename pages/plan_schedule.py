@@ -87,8 +87,14 @@ def schedule_machine(machine_id):
             if (selected_machine, date) not in st.session_state.selected_batches:
                 st.session_state.selected_batches[(selected_machine, date)] = {}
 
+            # Clear the dictionary and re-populate it with current selections
+            st.session_state.selected_batches[(selected_machine, date)].clear()
+
             selected_batches_for_date = st.session_state.selected_batches[(selected_machine, date)]
-            already_selected = {batch: percent for batch, percent in selected_batches_for_date.items()}
+            already_selected = {} # reset already selected.
+            for key, value in st.session_state.selected_batches[(selected_machine,date)].items():
+                already_selected[key] = value
+
             machine_batches_filtered = machine_batches[~machine_batches["display_name"].isin(already_selected)]
 
             # Compute allowed batches
