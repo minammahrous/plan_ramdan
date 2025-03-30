@@ -43,19 +43,27 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.progress_remaining = {}
     st.session_state.total_allocated = {}
     st.session_state.selected_batches = {}
+# Define defaults to prevent NameError
+selected_machine = st.session_state.get("selected_machine", None)
+date = st.session_state.get("selected_date", None)
+
+# Ensure selected_batches and downtimes exist in session state
 if "selected_batches" not in st.session_state:
     st.session_state.selected_batches = {}
 
 if "downtimes" not in st.session_state:
     st.session_state.downtimes = {}
-st.write(f"selected_machine: {selected_machine if 'selected_machine' in locals() else 'NOT DEFINED'}")
-st.write(f"date: {date if 'date' in locals() else 'NOT DEFINED'}")
-if (
-    (selected_machine, date) in st.session_state.selected_batches and st.session_state.selected_batches[(selected_machine, date)]
-) or (
-    (selected_machine, date) in st.session_state.downtimes and st.session_state.downtimes[(selected_machine, date)]
-):
-    st.session_state.schedule.append((selected_machine, date))
+
+# Run this check only if both selected_machine and date are set
+if selected_machine and date:
+    if (
+        (selected_machine, date) in st.session_state.selected_batches and 
+        bool(st.session_state.selected_batches[(selected_machine, date)])
+    ) or (
+        (selected_machine, date) in st.session_state.downtimes and 
+        bool(st.session_state.downtimes[(selected_machine, date)])
+    ):
+        st.session_state.schedule.append((selected_machine, date))
 
 # Track already selected batches
 def schedule_machine(machine_id):
