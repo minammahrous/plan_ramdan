@@ -112,7 +112,8 @@ def schedule_machine(machine_id):
 
             percent_selection = {}
             for batch in batch_selection:
-                available_percentage = allowed_batches[batch]
+                # Recalculate available_percentage for each batch selection
+                available_percentage = 100 - st.session_state.total_allocated[selected_machine][batch]
 
                 current_selection = already_selected.get(batch, 0)
                 percent = st.number_input(f"% of {batch} (Available: {available_percentage}%) ({date.strftime('%Y-%m-%d')})",
