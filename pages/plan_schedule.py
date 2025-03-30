@@ -193,7 +193,11 @@ if st.session_state.schedule_data:
     st.write("### Consolidated Schedule")
     consolidated_df = pd.DataFrame(columns=["Machine"] + date_range.strftime("%Y-%m-%d").tolist())
 
-    for machine, df in st.session_state.schedule_data.items():
+    # Filter out machines with no scheduled data
+    machines_with_data = [machine for machine, df in st.session_state.schedule_data.items() if any(df.loc["Batch", date] != "" for date in date_range.strftime("%Y-%m-%d"))]
+
+    for machine in machines_with_data:
+        df = st.session_state.schedule_data[machine]
         row = {"Machine": machine}  # Initialize row for the machine
         for date in date_range.strftime("%Y-%m-%d"):
             batch_data = df.loc["Batch", date] if "Batch" in df.index else ""
@@ -205,7 +209,6 @@ if st.session_state.schedule_data:
         consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
 
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
-
 # Save Button
 if st.button("Save Schedule"):
     conn = get_db_connection()
