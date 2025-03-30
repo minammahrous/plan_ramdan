@@ -182,9 +182,12 @@ if st.session_state.schedule_data:
 
     for machine, df in st.session_state.schedule_data.items():
         for date in date_range.strftime("%Y-%m-%d"):
-            if "Batch" in df.index and len(df.loc["Batch", date]) > 0 or "Downtime" in df.index and len(df.loc["Downtime", date]) > 0:
+            batch_data = df.loc["Batch", date] if "Batch" in df.index else ""
+            downtime_data = df.loc["Downtime", date] if "Downtime" in df.index else ""
+
+            if isinstance(batch_data, str) and len(batch_data) > 0 or isinstance(downtime_data, str) and len(downtime_data) > 0:
                 row = {"Machine": machine}
-                row[date] = f"{df.loc['Shift', date]}<br>{df.loc['Batch', date] if 'Batch' in df.index else ''}<br>{df.loc['Utilization', date] if 'Utilization' in df.index else ''}<br>{df.loc['Downtime', date] if 'Downtime' in df.index else ''}"
+                row[date] = f"{df.loc['Shift', date]}<br>{batch_data if isinstance(batch_data, str) else ''}<br>{df.loc['Utilization', date] if 'Utilization' in df.index else ''}<br>{downtime_data if isinstance(downtime_data, str) else ''}"
                 consolidated_df = pd.concat([consolidated_df, pd.DataFrame([row])], ignore_index=True)
 
     st.markdown(consolidated_df.to_html(escape=False, index=False), unsafe_allow_html=True)
