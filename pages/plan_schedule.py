@@ -60,11 +60,16 @@ if "downtimes" not in st.session_state:
 def schedule_machine(machine_id):
     machines = load_machines()
 
-    selected_machine = st.selectbox(f"Select Machine {machine_id + 1}", machines, key=f"machine_{machine_id}")
+    # Include a blank option at the start of the list
+    selected_machine = st.selectbox(f"Select Machine {machine_id + 1}", [""] + machines, index=0, key=f"machine_{machine_id}")
+
+    if not selected_machine:
+        st.warning("Please select a machine.")
+        return  # Exit if no machine is selected
 
     # Load unscheduled batches for selected machine
     batches = load_unscheduled_batches()
-
+    
     if batches.empty:
         st.warning("No unscheduled batches available in the database.")
         return
