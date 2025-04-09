@@ -46,7 +46,7 @@ if "machines_scheduled" not in st.session_state:
     st.session_state.selected_batches = {}
 
 # Define defaults to prevent NameError
-selected_machine = st.session_state.get("selected_machine", None)
+selected_machine = st.selectbox(f"Select Machine {machine_id + 1}", [""] + machines, index=0, key=f"machine_{machine_id}")  # Include a blank option
 date = st.session_state.get("selected_date", None)
 
 # Ensure selected_batches and downtimes exist in session state
